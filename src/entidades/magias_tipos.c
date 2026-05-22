@@ -108,28 +108,31 @@ const int QTD_PARAMETROS_MAGIA =
 static const float FATOR_REDUZ_COOLDOWN = 0.5f;
 
 void magias_tipos_processar_auto_fire(EstadoJogo *ej) {
-    /* Q toggle global: se o jogador desligou os tiros, sai sem mexer nos
-     * timers (retoma no mesmo cooldown quando religar). */
     if (!ej->tiros_ativos) return;
 
-    for (int m = 0; m < 3; m++) {
-        Elemento e = ej->profecia.mods[m].elemento;
-        if ((int)e < 0 || (int)e >= QTD_PARAMETROS_MAGIA) {
-            e = ELEMENTO_ARCANO;   /* fallback seguro */
-        }
+    MotorProfecia *mp = &ej->motor_profecia;
+    mp->cooldown_global_disparo -= ej->delta_tempo;
 
-        float *timer = &ej->motor_profecia.timer_disparo_mod[m];
-        *timer -= ej->delta_tempo;
-        if (*timer > 0.0f) continue;
+    if (mp->cooldown_global_disparo > 0.0f) return;
 
-        if (magias_disparar_elemento(ej, e)) {
+    for(int tentativa = 0; tentativa < 3; tentativa++){
+        int slot = mp->prox_slot_disparo;
+        Elemento e = ej->profecia.mods[slot].elemento;
+        
+        if ((int)e < 0 || (int)e >= QTD_PARAMETROS_MAGIA) e = ELEMENTO_ARCANO;
+        
+        if (magias_disparar_elemento(ej, e)){
             float intervalo = PARAMETROS_MAGIA[e].intervalo_disparo;
-            if (ej->motor_profecia.reduz_cooldown_tempo > 0.0f) {
-                intervalo *= FATOR_REDUZ_COOLDOWN;
-            }
-            *timer += intervalo;
-        } else {
-            *timer = 0.0f;   /* sem alvo: dispara assim que algo aparecer */
+            if (mp->reduz_cooldown_tempo > 0.0f) intervalo*=FATOR_REDUZ_COOLDOWN;
+            mp->cooldown_global_disparo = intervalo;
+            mp->prox_slot_disparo = (slot+1) % 3;
+            return;
         }
+
+        mp->prox_slot_disparo = (slot+1) % 3;
+
     }
+
+    mp->cooldown_global_disparo = 0.0f;
+
 }
