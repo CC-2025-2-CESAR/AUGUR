@@ -362,7 +362,8 @@ typedef struct {
  * -------------------------------------------------------------------- */
 typedef struct {
     float timer_cond[3];          /* COND_A_CADA_10S: acumulador por mod */
-    float timer_disparo_mod[3];   /* cooldown de auto-fire por mod (era static) */
+    float cooldown_global_disparo;/* cooldown de único entre diferentes disparos (round robin) */
+    int   prox_slot_disparo;      /*indice 0-2 do proximo mod a disparar*/
     bool  cond_vida_armada[3];    /* debounce de COND_VIDA_ABAIXO_X por mod */
     int   combo_contador;         /* kills dentro da janela atual */
     float combo_janela_restante;  /* s restantes da janela de combo */
