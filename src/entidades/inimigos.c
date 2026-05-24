@@ -246,14 +246,17 @@ void inimigos_atualizar(EstadoJogo *ej) {
 
 void inimigos_desenhar(const EstadoJogo *ej) {
     for (const InimigoNo *ino = ej->inimigos_cabeca;
-         ino != NULL;
-         ino = ino->proximo) {
+        ino != NULL;
+        ino = ino->proximo) {
         if (!ino->dados.vivo) continue;
         if ((int)ino->dados.tipo < 0 ||
             (int)ino->dados.tipo >= QTD_PARAMETROS_INIMIGO) continue;
 
         const ParametrosInimigo *p = &PARAMETROS_INIMIGO[ino->dados.tipo];
-        DrawCircleV(ino->dados.posicao, p->raio_visual, p->cor);
+        Color cor = p->cor; //copia daa cor
+        float vida_ratio = (float)ino->dados.vida / (float)ino->dados.vida_maxima; //porcentagem de vida
+        cor.a = (unsigned char)(80 + 175 * vida_ratio); //transparencia
+        DrawCircleV(ino->dados.posicao, p->raio_visual, cor);
         /* Outline mais escuro pra dar volume ao sprite circular. */
         DrawCircleLines((int)ino->dados.posicao.x,
                         (int)ino->dados.posicao.y,
