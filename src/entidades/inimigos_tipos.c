@@ -54,7 +54,7 @@ const ParametrosInimigo PARAMETROS_INIMIGO[] = {
     {
         .vida_base            = 90,
         .dano                 = 18,
-        .velocidade_movimento = 160.0f,
+        .velocidade_movimento = 180.0f,
         .raio                 = 20.0f,
         .raio_visual          = 20.0f,
         .cor                  = (Color){ 160,  80, 220, 255 },  /* roxo */
