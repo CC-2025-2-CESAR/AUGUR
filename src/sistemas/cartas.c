@@ -114,7 +114,13 @@ void cartas_aplicar(EstadoJogo *ej, int indice_escolhido) {
     } else if (copia_local_carta.tipo == CARTA_MAIS_MAGIAS) {
 
     } else if (copia_local_carta.tipo == CARTA_RECARGA_DADO) {
+        int qtd = copia_local_carta.valor;
+        if (qtd > MAX_DADOS_JOGADOR) qtd = MAX_DADOS_JOGADOR;
 
+        for (int k = 0; k < qtd; k++) {
+        ej->dados_ativos[k].ultimo_resultado = 0; 
+        
+        }
     }
 }
 
