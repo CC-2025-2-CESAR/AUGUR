@@ -114,7 +114,13 @@ void cartas_aplicar(EstadoJogo *ej, int indice_escolhido) {
     } else if (copia_local_carta.tipo == CARTA_MAIS_MAGIAS) {
 
     } else if (copia_local_carta.tipo == CARTA_RECARGA_DADO) {
+        int qtd = copia_local_carta.valor;
+        if (qtd > MAX_DADOS_JOGADOR) qtd = MAX_DADOS_JOGADOR;
 
+        for (int k = 0; k < qtd; k++) {
+        ej->dados_ativos[k].ultimo_resultado = 0; 
+        
+        }
     }
 }
 
@@ -122,68 +128,34 @@ void cartas_aplicar(EstadoJogo *ej, int indice_escolhido) {
  * carta e o x); dá pra colapsar num loop com array de cores no futuro. As
  * strings de DrawText ficam SEM acento (fonte default da Raylib é ASCII). */
 void cartas_desenhar_ui(const EstadoJogo *ej) {
+    Color CORES_RARIDADE[] = {
+        GRAY, GREEN, BLUE, PURPLE, RED, GOLD
+    };
 
-    if(ej->escolhas_upgrade[0].raridade == 0){
-        DrawRectangle(INICIO_CARTA_X - 2 , INICIO_CARTA_Y - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, GRAY);
-    }
-    else if(ej->escolhas_upgrade[0].raridade == 1){
-        DrawRectangle(INICIO_CARTA_X - 2 , INICIO_CARTA_Y - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, GREEN);
-    }
-    else if(ej->escolhas_upgrade[0].raridade == 2){
-        DrawRectangle(INICIO_CARTA_X - 2 , INICIO_CARTA_Y - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, BLUE);
-    }
-    else if(ej->escolhas_upgrade[0].raridade == 3){
-        DrawRectangle(INICIO_CARTA_X - 2 , INICIO_CARTA_Y - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, PURPLE);
-    }
-    else if(ej->escolhas_upgrade[0].raridade == 4){
-        DrawRectangle(INICIO_CARTA_X - 2 , INICIO_CARTA_Y - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, RED);
-    }
-    else if(ej->escolhas_upgrade[0].raridade == 5){
-        DrawRectangle(INICIO_CARTA_X - 2 , INICIO_CARTA_Y - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, GOLD);
-    }
-    DrawRectangle(INICIO_CARTA_X , INICIO_CARTA_Y , LARGURA_CARTA, ALTURA_CARTA, BLACK);
+    for (int i = 0; i < CARTAS_POR_ESCOLHA; i++) {
+        const Carta *c = &ej->escolhas_upgrade[i];
+        int x = INICIO_CARTA_X + i * GAP_CARTAS;
+        int y = INICIO_CARTA_Y;
+
+        Color cor = CORES_RARIDADE[c->raridade];
+
+        
+        DrawRectangle(x - 2, y - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, cor);
+        DrawRectangle(x, y, LARGURA_CARTA, ALTURA_CARTA, BLACK);
+
+        
+        DrawText(c->nome, x + 10, y + 15, 16, cor);
+
+        
+        DrawLine(x + 10, y + 40, x + LARGURA_CARTA - 10, y + 40, DARKGRAY);
+
+        
+        DrawText(c->descricao, x + 10, y + 55, 14, LIGHTGRAY);
+
+        
+        char tecla[8];
+        snprintf(tecla, sizeof(tecla), "[%d]", i + 1);
+        DrawText(tecla, x + LARGURA_CARTA / 2 - 10, y + ALTURA_CARTA - 30, 18, WHITE);
     
-    
-
-    if(ej->escolhas_upgrade[1].raridade == 0){
-        DrawRectangle(INICIO_CARTA_X + GAP_CARTAS - 2 , (INICIO_CARTA_Y) - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, GRAY);
     }
-    else if (ej->escolhas_upgrade[1].raridade == 1){
-        DrawRectangle(INICIO_CARTA_X + GAP_CARTAS - 2 , (INICIO_CARTA_Y) - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, GREEN);
-    }
-    else if (ej->escolhas_upgrade[1].raridade == 2){
-        DrawRectangle(INICIO_CARTA_X + GAP_CARTAS - 2 , (INICIO_CARTA_Y) - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, BLUE);
-    }
-    else if (ej->escolhas_upgrade[1].raridade == 3){
-        DrawRectangle(INICIO_CARTA_X + GAP_CARTAS - 2 , (INICIO_CARTA_Y) - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, PURPLE);
-    }
-    else if (ej->escolhas_upgrade[1].raridade == 4){
-        DrawRectangle(INICIO_CARTA_X + GAP_CARTAS - 2 , (INICIO_CARTA_Y) - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, RED);
-    }
-    else if(ej->escolhas_upgrade[1].raridade == 5){
-        DrawRectangle(INICIO_CARTA_X + GAP_CARTAS - 2 , (INICIO_CARTA_Y) - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, GOLD);
-    }
-    DrawRectangle(INICIO_CARTA_X + GAP_CARTAS , (INICIO_CARTA_Y), LARGURA_CARTA, ALTURA_CARTA, BLACK);
-
-
-
-    if(ej->escolhas_upgrade[2].raridade == 0){
-        DrawRectangle(INICIO_CARTA_X + (GAP_CARTAS * 2) - 2 , (INICIO_CARTA_Y) - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, GRAY);
-    }
-    else if(ej->escolhas_upgrade[2].raridade == 1){
-        DrawRectangle(INICIO_CARTA_X + (GAP_CARTAS * 2) - 2 , (INICIO_CARTA_Y) - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, GREEN);
-    }
-    else if(ej->escolhas_upgrade[2].raridade == 2){
-        DrawRectangle(INICIO_CARTA_X + (GAP_CARTAS * 2) - 2 , (INICIO_CARTA_Y) - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, BLUE);
-    }
-    else if(ej->escolhas_upgrade[2].raridade == 3){
-        DrawRectangle(INICIO_CARTA_X + (GAP_CARTAS * 2) - 2 , (INICIO_CARTA_Y) - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, PURPLE);
-    }
-    else if(ej->escolhas_upgrade[2].raridade == 4){
-        DrawRectangle(INICIO_CARTA_X + (GAP_CARTAS * 2) - 2 , (INICIO_CARTA_Y) - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, RED);
-    }
-    else if(ej->escolhas_upgrade[2].raridade == 5){
-        DrawRectangle(INICIO_CARTA_X + (GAP_CARTAS * 2) - 2 , (INICIO_CARTA_Y) - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, GOLD);
-    }
-    DrawRectangle(INICIO_CARTA_X + (GAP_CARTAS * 2) , (INICIO_CARTA_Y), LARGURA_CARTA, ALTURA_CARTA, BLACK);
 }
