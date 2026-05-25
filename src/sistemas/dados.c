@@ -1,28 +1,17 @@
-/* ============================================================================
- * dados.c - STUB DO SISTEMA DE DADOS
- * ============================================================================
- *
- * TODO: Dev 2 (Sofia) implementar este arquivo.
- *
- * Implementação simples de dado_rolar:
- *   int dado_rolar(Dado *d) {
- *       d->ultimo_resultado = (rand() % d->faces) + 1;
- *       return d->ultimo_resultado;
- *   }
- *
- * (rand() % faces) dá um número de 0 a faces-1. Somando 1, fica de 1 a faces.
- * ========================================================================== */
-
+#include <stdio.h>
+#include <string.h>
 #include "dados.h"
-#include <stdlib.h>   /* rand */
+#include <stdlib.h>
+#include "raylib.h"
+
+#define DADO_TAMANHO  40
+#define DADO_FONTE    18
+#define DADO_FONTE_SM 12
 
 int dado_rolar(Dado *d) {
-    (void)d;
-    return 0; /* TODO: Dev 2 — implementar conforme comentário acima */
+
 }
 
 void dado_desenhar(const Dado *d, int posicao_x, int posicao_y) {
-    (void)d;
-    (void)posicao_x;
-    (void)posicao_y; /* TODO: Dev 2 — desenhar face do dado + resultado */
+
 }

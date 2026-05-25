@@ -13,6 +13,7 @@
  * ============================================================================*/
 
 #include "hud.h"
+#include "dados.h"
 #include <stdio.h>
 
 #define HUD_MARGEM         10
@@ -41,10 +42,10 @@ void hud_desenhar_barra_vida(const EstadoJogo *ej)
 
     float porcentagem_vida;
     if (ej->jogador.vida_maxima > 0){
-    porcentagem_vida = (float)ej->jogador.vida / ej->jogador.vida_maxima;
+        porcentagem_vida = (float)ej->jogador.vida / ej->jogador.vida_maxima;
     }
     else{
-    porcentagem_vida = 0.0;
+        porcentagem_vida = 0.0;
     }
 
     Color cor_vida;
@@ -100,9 +101,11 @@ void hud_desenhar_biomassa(const EstadoJogo *ej)
 }
 
 
+
 /* Função pública chamada por main.c — agrega todos os elementos da HUD. */
 void desenhar_hud(const EstadoJogo *ej){
     hud_desenhar_barra_vida(ej);
     hud_desenhar_onda(ej);
     hud_desenhar_biomassa(ej);
+
 }
