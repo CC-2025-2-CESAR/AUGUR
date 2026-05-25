@@ -93,22 +93,14 @@ const int QTD_PARAMETROS_MAGIA =
 /* ----------------------------------------------------------------------------
  * 2. AUTO-FIRE
  * ----------------------------------------------------------------------------
- * Um unico cooldown global entre disparos + round-robin entre os 3 mods da
- * profecia: cada chamada dispara no maximo UMA magia. Apos cada disparo, o
- * cooldown global = intervalo_disparo da magia que acabou de sair (sofre o
- * fator de Reduz Cooldown se estiver ativo). Assim:
- *   - 3 mods iguais  -> cadencia constante daquela magia.
- *   - 2 iguais + 1   -> cicla; 2/3 dos disparos usam o intervalo da repetida.
- *   - 3 diferentes   -> cooldown varia conforme cicla pelos 3 elementos.
+ * A cada frame processa os 3 modificadores da profecia: cada mod dispara seu
+ * elemento no inimigo mais próximo, com cadência própria. A mira e o spawn
+ * (e o rider de status) ficam na engine — aqui só agendamos o tempo.
  *
- * O estado vive em ej->motor_profecia.cooldown_global_disparo (timer) e
- * proximo_slot_disparo (indice 0..2). Ambos resetam junto com a run via
- * jogo_resetar_run (memset implicito em MotorProfecia = {0}).
- *
- * Se o slot atual nao tem alvo (mirar retorna false), a gente avanca o indice
- * e tenta o proximo no mesmo frame — assim um slot "azarado" nao trava o
- * disparo. Se nenhum dos 3 acha alvo, cooldown fica em 0 e o proximo frame
- * tenta de novo (atira assim que um inimigo aparece).
+ * Os timers vivem em ej->motor_profecia.timer_disparo_mod[] (um por mod),
+ * não mais em `static`: assim resetam junto com a run e os 3 mods coexistem.
+ * Sem alvo, magias_disparar_elemento retorna false e o timer fica em 0 (não
+ * acumula disparos — atira assim que um inimigo aparece).
  * --------------------------------------------------------------------------*/
 
 /* Quanto o cooldown encolhe enquanto o efeito Reduz Cooldown da profecia
@@ -116,36 +108,31 @@ const int QTD_PARAMETROS_MAGIA =
 static const float FATOR_REDUZ_COOLDOWN = 0.5f;
 
 void magias_tipos_processar_auto_fire(EstadoJogo *ej) {
-    /* Q toggle global: se o jogador desligou os tiros, sai sem mexer no
-     * cooldown (retoma de onde parou quando religar). */
     if (!ej->tiros_ativos) return;
 
     MotorProfecia *mp = &ej->motor_profecia;
     mp->cooldown_global_disparo -= ej->delta_tempo;
+
     if (mp->cooldown_global_disparo > 0.0f) return;
 
-    /* Tenta ate os 3 slots no mesmo frame; primeiro com alvo dispara. */
-    for (int tentativa = 0; tentativa < 3; tentativa++) {
-        int slot = mp->proximo_slot_disparo;
+    for(int tentativa = 0; tentativa < 3; tentativa++){
+        int slot = mp->prox_slot_disparo;
         Elemento e = ej->profecia.mods[slot].elemento;
-        if ((int)e < 0 || (int)e >= QTD_PARAMETROS_MAGIA) {
-            e = ELEMENTO_ARCANO;   /* fallback seguro */
-        }
-
-        if (magias_disparar_elemento(ej, e)) {
+        
+        if ((int)e < 0 || (int)e >= QTD_PARAMETROS_MAGIA) e = ELEMENTO_ARCANO;
+        
+        if (magias_disparar_elemento(ej, e)){
             float intervalo = PARAMETROS_MAGIA[e].intervalo_disparo;
-            if (mp->reduz_cooldown_tempo > 0.0f) {
-                intervalo *= FATOR_REDUZ_COOLDOWN;
-            }
+            if (mp->reduz_cooldown_tempo > 0.0f) intervalo*=FATOR_REDUZ_COOLDOWN;
             mp->cooldown_global_disparo = intervalo;
-            mp->proximo_slot_disparo = (slot + 1) % 3;
+            mp->prox_slot_disparo = (slot+1) % 3;
             return;
         }
 
-        /* Slot sem alvo: avanca o indice e tenta o proximo neste mesmo frame. */
-        mp->proximo_slot_disparo = (slot + 1) % 3;
+        mp->prox_slot_disparo = (slot+1) % 3;
+
     }
 
-    /* Nenhum slot achou alvo: deixa o cooldown em 0 (dispara assim que aparecer). */
     mp->cooldown_global_disparo = 0.0f;
+
 }
