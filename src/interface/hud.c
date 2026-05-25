@@ -107,9 +107,5 @@ void desenhar_hud(const EstadoJogo *ej){
     hud_desenhar_barra_vida(ej);
     hud_desenhar_onda(ej);
     hud_desenhar_biomassa(ej);
-    for (int i = 0; i < MAX_DADOS_JOGADOR; i++) {
-        int x = LARGURA_TELA - HUD_MARGEM - DADO_TAMANHO - i * (DADO_TAMANHO + DADO_ESPACO);
-        int y = ALTURA_TELA  - HUD_MARGEM - DADO_TAMANHO;
-        dado_desenhar(&ej->dados_ativos[i], x, y);
-    }
+
 }
