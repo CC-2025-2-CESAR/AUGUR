@@ -61,10 +61,69 @@ void magias_spawnar(EstadoJogo *ej,
 }
 
 
-/* Vetor unitário do jogador até o inimigo VIVO (não-aliado) mais próximo.
+/* Resolve a equação de interceptação balística:
+ *   |D + V·t| = S·t
+ * onde D = E − P (vetor jogador→inimigo), V = velocidade do inimigo,
+ * S = velocidade escalar do projétil. Devolve o menor t > 0 que satisfaz.
+ *
+ * Expandindo: (V·V − S²)·t² + 2·(D·V)·t + (D·D) = 0 — quadrática at²+bt+c=0.
+ *
+ * Casos cobertos:
+ *   1. |a| ~ 0 (inimigo na velocidade do projétil): degenera em linear b·t+c=0.
+ *   2. discriminante < 0: sem solução real (inimigo foge mais rápido que dá
+ *      pra interceptar). Retorna false; chamador faz fallback.
+ *   3. t > T_MAX: predição irreal (inimigo quase escapando) → fallback.
+ *
+ * Forma numericamente estável das raízes pra evitar perda de precisão quando
+ * b e √Δ têm magnitudes próximas: q = −½·(b + sign(b)·√Δ); t1 = q/a; t2 = c/q. */
+static bool calcular_tempo_intercepcao(Vector2 D, Vector2 V,
+                                       float S, float *out_t) {
+    const float EPS   = 1e-4f;
+    const float T_MAX = 2.0f;   /* s; acima disso, mira atual fica melhor */
+
+    float a = V.x * V.x + V.y * V.y - S * S;
+    float b = 2.0f * (D.x * V.x + D.y * V.y);
+    float c = D.x * D.x + D.y * D.y;
+
+    float t = -1.0f;
+
+    if (fabsf(a) < EPS) {
+        /* V·V ≈ S²: linear b·t + c = 0. c ≥ 0 sempre, então só serve b < 0. */
+        if (b < -EPS) t = -c / b;
+    } else {
+        float disc = b * b - 4.0f * a * c;
+        if (disc < 0.0f) return false;
+        float sq = sqrtf(disc);
+        float q  = -0.5f * (b + (b >= 0.0f ? sq : -sq));
+        float t1 = (fabsf(q) > EPS) ? (q / a) : -1.0f;
+        float t2 = (fabsf(q) > EPS) ? (c / q) : -1.0f;
+        if      (t1 > EPS && t2 > EPS) t = (t1 < t2) ? t1 : t2;
+        else if (t1 > EPS)             t = t1;
+        else if (t2 > EPS)             t = t2;
+    }
+
+    if (t <= EPS || t > T_MAX) return false;
+    *out_t = t;
+    return true;
+}
+
+
+/* Vetor unitário do jogador até o inimigo VIVO (não-aliado) mais próximo,
+ * com MIRA PREDITIVA: aponta pra onde o inimigo VAI estar quando o projétil
+ * chegar, em vez de onde ele está agora. Resolve uma quadrática de
+ * interceptação balística usando a velocidade que a IA escreveu no frame
+ * anterior (defasagem desprezível com dt~16ms).
+ *
+ * Fallback pra mira na posição atual quando:
+ *   - inimigo está parado (V²~0; inclui congelado)
+ *   - não há solução real (inimigo foge mais rápido que dá pra interceptar)
+ *   - tempo de interceptação > T_MAX (predição irreal)
+ *
  * Engine própria de mira: centraliza o disparo aqui (a Luísa só agenda
  * QUANDO disparar, em magias_tipos.c). Retorna false se não há alvo. */
-static bool mirar_mais_proximo(const EstadoJogo *ej, Vector2 *out_dir) {
+static bool mirar_mais_proximo(const EstadoJogo *ej,
+                               float velocidade_projetil,
+                               Vector2 *out_dir) {
     const InimigoNo *perto = NULL;
     float menor = 1e30f;
     for (const InimigoNo *ino = ej->inimigos_cabeca; ino; ino = ino->proximo) {
@@ -76,9 +135,25 @@ static bool mirar_mais_proximo(const EstadoJogo *ej, Vector2 *out_dir) {
     }
     if (perto == NULL) return false;
 
-    float dx = perto->dados.posicao.x - ej->jogador.posicao.x;
-    float dy = perto->dados.posicao.y - ej->jogador.posicao.y;
-    float c = sqrtf(dx * dx + dy * dy);
+    Vector2 D = { perto->dados.posicao.x - ej->jogador.posicao.x,
+                  perto->dados.posicao.y - ej->jogador.posicao.y };
+    Vector2 V = perto->dados.velocidade;
+
+    /* Alvo parado (V·V ~ 0) ou sem interceptação válida: mira direta no alvo. */
+    Vector2 alvo;
+    float vv = V.x * V.x + V.y * V.y;
+    float t;
+    if (vv < 1e-4f ||
+        !calcular_tempo_intercepcao(D, V, velocidade_projetil, &t)) {
+        alvo = perto->dados.posicao;
+    } else {
+        alvo.x = perto->dados.posicao.x + V.x * t;
+        alvo.y = perto->dados.posicao.y + V.y * t;
+    }
+
+    float dx = alvo.x - ej->jogador.posicao.x;
+    float dy = alvo.y - ej->jogador.posicao.y;
+    float c  = sqrtf(dx * dx + dy * dy);
     if (c < 0.0001f) return false;
     out_dir->x = dx / c;
     out_dir->y = dy / c;
@@ -92,7 +167,8 @@ static bool mirar_mais_proximo(const EstadoJogo *ej, Vector2 *out_dir) {
  * pra não acumular cooldown enquanto não há inimigos. */
 bool magias_disparar_elemento(EstadoJogo *ej, Elemento elemento) {
     Vector2 dir;
-    if (!mirar_mais_proximo(ej, &dir)) return false;
+    float vproj = PARAMETROS_MAGIA[elemento].velocidade_projetil;
+    if (!mirar_mais_proximo(ej, vproj, &dir)) return false;
 
     magias_spawnar(ej, ej->jogador.posicao, dir, elemento);
 
