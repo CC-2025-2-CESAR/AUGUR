@@ -3,20 +3,12 @@
 #include <string.h>
 
 #include "cartas.h"
-#include "dados.h"
 
 #define INICIO_CARTA_X  160
 #define INICIO_CARTA_Y  200
 #define LARGURA_CARTA   240
 #define ALTURA_CARTA    320
 #define GAP_CARTAS      360
-
-/* Índice do dado selecionado para rolar (−1 = nenhum selecionado ainda). */
-static int dado_selecionado = -1;
-
-/* Flag: a carta de índice i foi modificada pelo dado nesta tela de upgrade.
- * Garante que cada carta só possa ser rolada uma vez antes de ser escolhida. */
-static bool carta_ja_rolada[CARTAS_POR_ESCOLHA] = { false, false, false };
 
 
 typedef struct {
@@ -74,10 +66,6 @@ DadosCarta TABELA_CARTAS[CARTA_TOTAL][6] = {
 };
 
 void cartas_gerar_escolhas(EstadoJogo *ej) {
-    dado_selecionado = -1;
-    for (int i = 0; i < CARTAS_POR_ESCOLHA; i++){
-        carta_ja_rolada[i] = false;
-    }
 
     for (int i = 0; i < CARTAS_POR_ESCOLHA; i++) {
         int tipo    = rand() % CARTA_TOTAL;
@@ -129,47 +117,12 @@ void cartas_aplicar(EstadoJogo *ej, int indice_escolhido) {
         int qtd = copia_local_carta.valor;
         if (qtd > MAX_DADOS_JOGADOR) qtd = MAX_DADOS_JOGADOR;
 
-        int recarregados = 0;
-        for (int k = 0; k < MAX_DADOS_JOGADOR && recarregados < qtd; k++) {
-            if (!dado_esta_carregado(&ej->dados_ativos[k])) {
-                ej->dados_ativos[k].ultimo_resultado = 0;
-                recarregados++; 
+        for (int k = 0; k < qtd; k++) {
+        ej->dados_ativos[k].ultimo_resultado = 0; 
         
-            }
         }
     }
-    dado_selecionado = -1;
-    for (int i = 0; i < CARTAS_POR_ESCOLHA; i++)
-        carta_ja_rolada[i] = false;
 }
-
-bool cartas_usar_dado(EstadoJogo *ej, int indice_carta) {
-    if (indice_carta < 0 || indice_carta >= CARTAS_POR_ESCOLHA)
-        return false;
-
-    if (carta_ja_rolada[indice_carta])
-        return false;
-
-    int slot_dado = -1;
-    for (int k = 0; k < MAX_DADOS_JOGADOR; k++) {
-        if (dado_esta_carregado(&ej->dados_ativos[k])) {
-            slot_dado = k;
-            break;
-        }
-    }
-
-    if (slot_dado < 0)
-        return false;
-
-    int resultado = dado_rolar(&ej->dados_ativos[slot_dado]);
-    int faces     = ej->dados_ativos[slot_dado].faces;
-
-    dado_aplicar_na_carta(resultado, faces, &ej->escolhas_upgrade[indice_carta]);
-    carta_ja_rolada[indice_carta] = true;
-
-    return true;
-}
-
 
 /* Os três blocos de borda por raridade são copy-paste (só muda o índice da
  * carta e o x); dá pra colapsar num loop com array de cores no futuro. As
@@ -186,41 +139,23 @@ void cartas_desenhar_ui(const EstadoJogo *ej) {
 
         Color cor = CORES_RARIDADE[c->raridade];
 
-        if (carta_ja_rolada[i]) DrawRectangle(x - 4, y - 4, LARGURA_CARTA + 8, ALTURA_CARTA + 8, GOLD);
-        
         
         DrawRectangle(x - 2, y - 2, LARGURA_CARTA + 4, ALTURA_CARTA + 4, cor);
         DrawRectangle(x, y, LARGURA_CARTA, ALTURA_CARTA, BLACK);
 
         
         DrawText(c->nome, x + 10, y + 15, 16, cor);
+
+        
         DrawLine(x + 10, y + 40, x + LARGURA_CARTA - 10, y + 40, DARKGRAY);
+
+        
         DrawText(c->descricao, x + 10, y + 55, 14, LIGHTGRAY);
 
-        if (carta_ja_rolada[i]) DrawText("~ DADO ~", x + LARGURA_CARTA / 2 - 32, y + ALTURA_CARTA - 55, 14, GOLD);
-        
         
         char tecla[8];
         snprintf(tecla, sizeof(tecla), "[%d]", i + 1);
         DrawText(tecla, x + LARGURA_CARTA / 2 - 10, y + ALTURA_CARTA - 30, 18, WHITE);
     
     }
-    
-    int dados_carregados = 0;
-    for (int k = 0; k < MAX_DADOS_JOGADOR; k++) {
-        if (dado_esta_carregado(&ej->dados_ativos[k]))
-            dados_carregados++;
-    }
-
-    int dado_base_x = LARGURA_TELA / 2 - (MAX_DADOS_JOGADOR * 55) / 2;
-    int dado_base_y = ALTURA_TELA - 80;
-
-    for (int k = 0; k < MAX_DADOS_JOGADOR; k++) {
-        dado_desenhar(&ej->dados_ativos[k], dado_base_x + k * 55, dado_base_y);
-    }
-
-    if (dados_carregados > 0) DrawText("R + [1/2/3] para rolar dado na carta", LARGURA_TELA / 2 - 210, ALTURA_TELA - 110, 18, YELLOW);
-    else DrawText("Sem dados disponiveis", LARGURA_TELA / 2 - 110, ALTURA_TELA - 110, 18, DARKGRAY);
-    
 }
-

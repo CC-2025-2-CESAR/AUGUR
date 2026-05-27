@@ -26,12 +26,6 @@
  * Também guarda em d->ultimo_resultado pra UI mostrar. */
 int dado_rolar(Dado *d);
 
-/* Aplica o resultado de uma rolagem na carta alvo, modificando*/
-void dado_aplicar_na_carta(int resultado, int faces, Carta *carta);
-
-/* Retorna true se o dado está carregado (ultimo_resultado == 0). */
-bool dado_esta_carregado(const Dado *d);
-
 /* Desenha o dado na tela (número de faces + último resultado). */
 void dado_desenhar(const Dado *d, int posicao_x, int posicao_y);
 
