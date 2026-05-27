@@ -46,6 +46,8 @@ static Vector2 ponto_de_spawn_borda(const EstadoJogo *ej) {
     float t_lateral = (fabsf(dx) > 0.0001f) ? meia_largura / fabsf(dx) : 1e9f;
     float t_topo    = (fabsf(dy) > 0.0001f) ? meia_altura  / fabsf(dy) : 1e9f;
     float t = fminf(t_lateral, t_topo);
+    const float DIST_MIN = 200.0f;
+    if (t < DIST_MIN) t = DIST_MIN;
 
     Vector2 alvo;
     alvo.x = ej->jogador.posicao.x + dx * t;
