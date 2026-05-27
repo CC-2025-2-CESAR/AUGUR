@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "cartas.h"
+#include "dados.h"
 
 #define INICIO_CARTA_X  160
 #define INICIO_CARTA_Y  200
