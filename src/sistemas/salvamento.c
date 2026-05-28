@@ -13,14 +13,30 @@
 #include <stdio.h>    /* FILE, fopen, fread, fwrite, fclose */
 #include <string.h>   /* memset */
 
+#define CAMINHO_SAVE "saves/biomassa.dat"
+
 void salvamento_carregar(DadosSalvos *ds) {
-    /* TODO: Dev 2 — implementar leitura binária do arquivo.
-     * Por enquanto, zera tudo (como se fosse uma sessão nova). */
+    if (ds == NULL) return;
+
     memset(ds, 0, sizeof(DadosSalvos));
+
+    FILE *f = fopen(CAMINHO_SAVE, "rb");
+    if (f == NULL) return; /* primeira run: fica com os zeros */
+
+    fread(ds, sizeof(DadosSalvos), 1, f);
+    fclose(f);
 }
 
 void salvamento_salvar(const DadosSalvos *ds) {
-    (void)ds;
-    /* TODO: Dev 2 — implementar escrita binária no arquivo.
-     * Não esquecer de fechar o FILE com fclose depois do fwrite! */
+    if (ds == NULL) return;
+
+    FILE *f = fopen(CAMINHO_SAVE, "wb");
+    if (f == NULL) {
+        fprintf(stderr, "[SALVAMENTO] Erro: nao foi possivel abrir '%s' para escrita.\n",
+                CAMINHO_SAVE);
+        return;
+    }
+
+    fwrite(ds, sizeof(DadosSalvos), 1, f);
+    fclose(f);
 }

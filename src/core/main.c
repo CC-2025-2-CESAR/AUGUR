@@ -295,10 +295,19 @@ static void atualizar_pausa(EstadoJogo *ej) {
  * timeline NÃO avança enquanto este estado está ativo. O jogador aperta 1/2/3
  * pra escolher a carta; a escolha é aplicada e o controle volta pro combate. */
 static void atualizar_cartas_upgrade(EstadoJogo *ej) {
+    if (IsKeyDown(KEY_R)) {
+        if (IsKeyPressed(KEY_ONE))   cartas_usar_dado(ej, 0);
+        if (IsKeyPressed(KEY_TWO))   cartas_usar_dado(ej, 1);
+        if (IsKeyPressed(KEY_THREE)) cartas_usar_dado(ej, 2);
+    }
+
+    
     int escolha = -1;
-    if      (IsKeyPressed(KEY_ONE))   escolha = 0;
-    else if (IsKeyPressed(KEY_TWO))   escolha = 1;
-    else if (IsKeyPressed(KEY_THREE)) escolha = 2;
+    if (!IsKeyDown(KEY_R)) {
+        if      (IsKeyPressed(KEY_ONE))   escolha = 0;
+        else if (IsKeyPressed(KEY_TWO))   escolha = 1;
+        else if (IsKeyPressed(KEY_THREE)) escolha = 2;
+    }
 
     if (escolha >= 0) {
         cartas_aplicar(ej, escolha);
@@ -480,6 +489,11 @@ static void jogo_resetar_run(EstadoJogo *ej) {
     ej->motor_profecia = (MotorProfecia){0};   /* zera timers/combo/buffs da run */
     ej->camera.target = ej->jogador.posicao;
     ej->tiros_ativos  = true;
+
+    for (int k = 0; k < MAX_DADOS_JOGADOR; k++) {
+        ej->dados_ativos[k].faces            = 6;
+        ej->dados_ativos[k].ultimo_resultado = 0;
+    }
 }
 
 
