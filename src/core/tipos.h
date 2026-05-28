@@ -35,9 +35,16 @@
  * Qualquer "número mágico" que vários arquivos usam vira #define aqui.
  * Assim muda em um lugar só.
  * ========================================================================== */
-#define LARGURA_TELA      1280
-#define ALTURA_TELA       720
+#define LARGURA_TELA      1280   /* resolução default; pode ser sobrescrita pelo save */
+#define ALTURA_TELA       720    /* resolução default; pode ser sobrescrita pelo save */
 #define FPS_ALVO          60
+
+/* Versão atual do formato do save. Se o save no disco trouxer outro valor,
+ * salvamento_carregar zera tudo (evita lixo binário ao expandir DadosSalvos). */
+#define SAVE_VERSAO_ATUAL 2
+
+#define LEADERBOARD_TAM   10    /* top-10 nas duas tabelas (tempo + biomassa) */
+#define SEED_MAX_DIGITOS  10    /* unsigned int 32-bit cabe em 10 dígitos decimais */
 
 #define MAX_PROJETEIS     256   /* teto de segurança pra lista de magias */
 #define MAX_PROJETEIS_INIMIGO 256 /* teto da lista de projéteis de inimigo */
@@ -58,6 +65,9 @@
  * Main.c tem um switch que decide o que rodar baseado nesse valor. */
 typedef enum {
     ESTADO_MENU,                /* tela inicial */
+    ESTADO_OPCOES,              /* config de vídeo: resolução, fullscreen */
+    ESTADO_LEADERBOARD,         /* tabelas top-10 (tempo e biomassa) */
+    ESTADO_INSERIR_SEED,        /* input de seed manual antes de uma run */
     ESTADO_REVELACAO_PROFECIA,  /* mostra os 3 modificadores sorteados */
     ESTADO_COMBATE,             /* timeline rolando, inimigos spawnando */
     ESTADO_PAUSA,               /* ESC durante o combate; mundo congelado */
@@ -415,16 +425,50 @@ typedef struct {
 } Dado;
 
 
+/* -------------------- ENTRADA DE LEADERBOARD --------------------
+ * Uma linha do top-10. Há duas tabelas em DadosSalvos: top_tempo (só vitórias,
+ * ordenado por tempo crescente) e top_biomassa (vitórias e derrotas, ordenado
+ * por pontuação decrescente). Slot livre = ocupado=false.
+ * ---------------------------------------------------------------- */
+typedef struct {
+    int          pontuacao;         /* biomassa coletada na run */
+    float        tempo_segundos;    /* duração da run; só tem sentido se venceu=true */
+    unsigned int seed;              /* seed da profecia, pra replay */
+    bool         venceu;            /* true se chegou ao chefão e derrotou */
+    bool         ocupado;           /* false = slot vazio */
+} EntradaLeaderboard;
+
+
 /* -------------------- DADOS SALVOS (DEV 2) --------------------
- * Persistem entre runs. Dev 2 salva/carrega de saves/biomassa.dat
- * usando fwrite/fread (REQUISITO OBRIGATÓRIO de PIF: arquivo).
+ * Persistem entre runs. Sofia escreve via fwrite em saves/biomassa.dat
+ * (REQUISITO OBRIGATÓRIO de PIF: arquivo). Layout serializado é literalmente
+ * o memory layout da struct — qualquer campo novo entra de graça no save.
+ *
+ * VERSÃO: se o save no disco trouxer outro versao_save, salvamento_carregar
+ * zera tudo. Garante que upgrades da struct não corrompam runs antigas.
  * ------------------------------------------------------------- */
 typedef struct {
+    int  versao_save;               /* SAVE_VERSAO_ATUAL; gate de compatibilidade */
+
+    /* --- progressão (campos originais da Sofia) --- */
     int  biomassa_total;            /* moeda acumulada em todas as runs */
     int  runs_completadas;
     int  melhor_onda;               /* maior onda alcançada até hoje */
     int  profecias_desbloqueadas[20]; /* MATRIZ — requisito obrigatório */
     char nome_jogador[32];
+
+    /* --- config de vídeo --- */
+    int  largura_tela;              /* 0 = usar LARGURA_TELA default */
+    int  altura_tela;
+    bool fullscreen;
+
+    /* --- "Carregar Jogo" (replay da última seed) --- */
+    unsigned int ultima_seed;
+    bool         tem_ultima_seed;
+
+    /* --- leaderboards --- */
+    EntradaLeaderboard top_tempo[LEADERBOARD_TAM];     /* só vitórias; tempo crescente */
+    EntradaLeaderboard top_biomassa[LEADERBOARD_TAM];  /* vit. e derrotas; pontuação decrescente */
 } DadosSalvos;
 
 

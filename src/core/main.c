@@ -40,9 +40,12 @@
 #include "dados.h"
 #include "salvamento.h"
 #include "hud.h"
+#include "config_video.h"   /* aplica resolução e fullscreen do save */
+#include "leaderboard.h"    /* top-10 de runs */
 
-#include <stdlib.h>   /* srand, rand */
+#include <stdlib.h>   /* srand, rand, strtoul */
 #include <stdio.h>    /* snprintf */
+#include <string.h>   /* memset, strlen */
 #include <time.h>     /* time() pra seed inicial */
 #include <math.h>     /* floorf, ceilf pra desenhar o grid infinito */
 
@@ -59,6 +62,9 @@ static void jogo_finalizar(EstadoJogo *ej);
 static void desenhar_grid_mundo(const Camera2D *camera);
 
 static void atualizar_menu(EstadoJogo *ej);
+static void atualizar_opcoes(EstadoJogo *ej);
+static void atualizar_leaderboard(EstadoJogo *ej);
+static void atualizar_inserir_seed(EstadoJogo *ej);
 static void atualizar_revelacao_profecia(EstadoJogo *ej);
 static void atualizar_combate(EstadoJogo *ej);
 static void atualizar_pausa(EstadoJogo *ej);
@@ -66,11 +72,35 @@ static void atualizar_cartas_upgrade(EstadoJogo *ej);
 static void atualizar_game_over(EstadoJogo *ej);
 static void atualizar_vitoria(EstadoJogo *ej);
 
+static void desenhar_menu(const EstadoJogo *ej);
+static void desenhar_opcoes(const EstadoJogo *ej);
+static void desenhar_inserir_seed(const EstadoJogo *ej);
+
+/* Inicia uma nova run com a seed dada. Centraliza o que rola ao confirmar
+ * "Novo Jogo", "Carregar Jogo" e "Inserir Seed": gera profecia, gera mapa,
+ * salva a seed em ultima_seed pra próximo "Carregar Jogo", persiste, e
+ * transita pra revelação da profecia. */
+static void iniciar_run_com_seed(EstadoJogo *ej, unsigned int seed);
+
 /* Reset completo do estado da run. Chamada toda vez que uma nova run começa
  * (depois da revelação da profecia). Garante que não sobra nada da run
  * anterior — listas vazias, jogador na origem com vida cheia. Não toca em
  * salvamento nem em tempo_total (esses são meta-progressão / debug). */
 static void jogo_resetar_run(EstadoJogo *ej);
+
+
+/* ============================================================================
+ * ESTADO DAS TELAS DE MENU
+ * --------------------------------------------------------------------------
+ * Cursores das telas (item selecionado, aba ativa, buffer do input de seed).
+ * Vivem como "static" fora das funções pra persistir entre frames sem precisar
+ * carregar variável de transição na struct EstadoJogo.
+ * ========================================================================== */
+static int  s_menu_item                 = 0;     /* cursor do menu principal */
+static int  s_opcoes_item               = 0;     /* cursor da tela de opções */
+static bool s_leaderboard_aba_biomassa  = false; /* false=tempo, true=biomassa */
+static char s_seed_buffer[SEED_MAX_DIGITOS + 1] = {0}; /* buffer de input de seed */
+static int  s_seed_buffer_len           = 0;
 
 
 /* ============================================================================
@@ -126,7 +156,9 @@ static void jogo_inicializar(EstadoJogo *ej) {
     ej->proximo_estado = ESTADO_MENU;
 
     jogador_inicializar(&ej->jogador);
-    salvamento_carregar(&ej->salvamento);   /* stub por enquanto */
+    salvamento_carregar(&ej->salvamento);
+    config_video_normalizar(&ej->salvamento);   /* preenche defaults se save vazio */
+    config_video_aplicar(&ej->salvamento);      /* aplica resolução e fullscreen agora */
 
     /* Listas começam vazias (cabeça = NULL) */
     ej->magias_cabeca   = NULL;
@@ -167,6 +199,9 @@ static void jogo_atualizar(EstadoJogo *ej) {
      * Cada estado tem sua própria função de atualização. */
     switch (ej->estado_atual) {
         case ESTADO_MENU:               atualizar_menu(ej);               break;
+        case ESTADO_OPCOES:             atualizar_opcoes(ej);             break;
+        case ESTADO_LEADERBOARD:        atualizar_leaderboard(ej);        break;
+        case ESTADO_INSERIR_SEED:       atualizar_inserir_seed(ej);       break;
         case ESTADO_REVELACAO_PROFECIA: atualizar_revelacao_profecia(ej); break;
         case ESTADO_COMBATE:            atualizar_combate(ej);            break;
         case ESTADO_PAUSA:              atualizar_pausa(ej);              break;
@@ -186,22 +221,192 @@ static void jogo_atualizar(EstadoJogo *ej) {
 }
 
 
-/* --- Estado: MENU ---------------------------------------------------------
- * Tela inicial. ENTER começa uma nova run: gera a profecia e vai pra tela
- * de revelação. */
-static void atualizar_menu(EstadoJogo *ej) {
-    if (IsKeyPressed(KEY_ENTER)) {
-        /* Gera profecia com uma seed aleatória.
-         * rand() retorna int, convertemos pra unsigned. */
-        unsigned int seed = (unsigned int)rand();
-        profecia_gerar(&ej->profecia, seed);
+/* --- Items do menu principal ---------------------------------------------
+ * Mantemos a lista como dois arrays paralelos pra ficar simples adicionar/
+ * remover itens. O item CARREGAR aparece SOMENTE se há um save com seed
+ * registrada (salvamento.tem_ultima_seed). */
+typedef enum {
+    MENU_NOVO_JOGO,
+    MENU_CARREGAR,
+    MENU_INSERIR_SEED,
+    MENU_LEADERBOARD,
+    MENU_OPCOES,
+    MENU_SAIR,
+    MENU_TOTAL_ITENS
+} ItemMenu;
 
-        /* Mesma seed alimenta o gerador de obstáculos do mapa. Stub do Dev 3
-         * por enquanto — não faz nada até ela implementar. */
-        obstaculos_gerar(ej, seed);
+static const char *MENU_LABEL[MENU_TOTAL_ITENS] = {
+    "Novo Jogo",
+    "Carregar Jogo",
+    "Inserir Seed",
+    "Leaderboard",
+    "Opcoes",
+    "Sair",
+};
 
-        ej->proximo_estado = ESTADO_REVELACAO_PROFECIA;
+/* Constrói a lista de itens visíveis no menu atual. Filtra "Carregar Jogo" se
+ * não há save de seed. Retorna a quantidade de itens visíveis e preenche
+ * `mapa[]` com os índices originais (ItemMenu) na ordem em que aparecem. */
+static int montar_menu_visivel(const EstadoJogo *ej, ItemMenu mapa[MENU_TOTAL_ITENS]) {
+    int n = 0;
+    for (int i = 0; i < MENU_TOTAL_ITENS; i++) {
+        if (i == MENU_CARREGAR && !ej->salvamento.tem_ultima_seed) continue;
+        mapa[n++] = (ItemMenu)i;
     }
+    return n;
+}
+
+
+/* --- Estado: MENU ---------------------------------------------------------
+ * Tela inicial. UP/DOWN move o cursor entre os itens; ENTER seleciona. ESC
+ * é no-op aqui (não tem onde voltar). */
+static void atualizar_menu(EstadoJogo *ej) {
+    ItemMenu mapa[MENU_TOTAL_ITENS];
+    int n = montar_menu_visivel(ej, mapa);
+    if (n == 0) return;   /* defensivo */
+
+    /* Mantém s_menu_item dentro da janela visível (em runs antigas pode ter
+     * ficado fora do range). */
+    if (s_menu_item >= n) s_menu_item = n - 1;
+    if (s_menu_item < 0)  s_menu_item = 0;
+
+    if (IsKeyPressed(KEY_UP)   || IsKeyPressed(KEY_W)) {
+        s_menu_item = (s_menu_item - 1 + n) % n;
+    }
+    if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) {
+        s_menu_item = (s_menu_item + 1) % n;
+    }
+
+    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+        switch (mapa[s_menu_item]) {
+            case MENU_NOVO_JOGO: {
+                /* Sorteia uma seed nova e começa a run. */
+                unsigned int seed = (unsigned int)rand();
+                iniciar_run_com_seed(ej, seed);
+                break;
+            }
+            case MENU_CARREGAR:
+                /* Replay da última seed jogada (só aparece se há save). */
+                iniciar_run_com_seed(ej, ej->salvamento.ultima_seed);
+                break;
+            case MENU_INSERIR_SEED:
+                /* Limpa o buffer e abre a tela de input. */
+                s_seed_buffer_len = 0;
+                s_seed_buffer[0]  = '\0';
+                ej->proximo_estado = ESTADO_INSERIR_SEED;
+                break;
+            case MENU_LEADERBOARD:
+                ej->proximo_estado = ESTADO_LEADERBOARD;
+                break;
+            case MENU_OPCOES:
+                s_opcoes_item = 0;
+                ej->proximo_estado = ESTADO_OPCOES;
+                break;
+            case MENU_SAIR:
+                ej->proximo_estado = ESTADO_SAIR;
+                break;
+            default: break;
+        }
+    }
+}
+
+
+/* --- Estado: OPCOES -------------------------------------------------------
+ * Configuração de vídeo: navega entre resoluções e o toggle de fullscreen.
+ * As mudanças são aplicadas e salvas ao confirmar com ENTER no item escolhido.
+ * ESC volta sem aplicar. */
+static void atualizar_opcoes(EstadoJogo *ej) {
+    /* Itens visíveis: as N resoluções + 1 linha "Fullscreen" + 1 "Voltar". */
+    int total_itens = RESOLUCOES_TOTAL + 2;
+
+    if (IsKeyPressed(KEY_UP)   || IsKeyPressed(KEY_W)) {
+        s_opcoes_item = (s_opcoes_item - 1 + total_itens) % total_itens;
+    }
+    if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) {
+        s_opcoes_item = (s_opcoes_item + 1) % total_itens;
+    }
+
+    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+        if (s_opcoes_item < RESOLUCOES_TOTAL) {
+            /* Linha de resolução: aplica a escolhida. */
+            ej->salvamento.largura_tela = (int)RESOLUCOES_DISPONIVEIS[s_opcoes_item].x;
+            ej->salvamento.altura_tela  = (int)RESOLUCOES_DISPONIVEIS[s_opcoes_item].y;
+            config_video_aplicar(&ej->salvamento);
+            salvamento_salvar(&ej->salvamento);
+        } else if (s_opcoes_item == RESOLUCOES_TOTAL) {
+            /* Linha "Fullscreen": toggle. */
+            ej->salvamento.fullscreen = !ej->salvamento.fullscreen;
+            config_video_aplicar(&ej->salvamento);
+            salvamento_salvar(&ej->salvamento);
+        } else {
+            /* "Voltar". */
+            ej->proximo_estado = ESTADO_MENU;
+        }
+    }
+
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        ej->proximo_estado = ESTADO_MENU;
+    }
+}
+
+
+/* --- Estado: LEADERBOARD --------------------------------------------------
+ * Duas tabelas: tempo (só vitórias) e biomassa (vit. e derrotas). TAB alterna.
+ * ESC volta. */
+static void atualizar_leaderboard(EstadoJogo *ej) {
+    if (IsKeyPressed(KEY_TAB)) {
+        s_leaderboard_aba_biomassa = !s_leaderboard_aba_biomassa;
+    }
+    if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER)) {
+        ej->proximo_estado = ESTADO_MENU;
+    }
+}
+
+
+/* --- Estado: INSERIR_SEED -------------------------------------------------
+ * Input numérico simples: GetCharPressed() em loop pra capturar dígitos.
+ * BACKSPACE apaga, ENTER confirma, ESC cancela. */
+static void atualizar_inserir_seed(EstadoJogo *ej) {
+    /* Captura todos os caracteres pressionados neste frame. GetCharPressed
+     * devolve 0 quando a fila esvazia. */
+    int c;
+    while ((c = GetCharPressed()) != 0) {
+        if (c >= '0' && c <= '9' &&
+            s_seed_buffer_len < SEED_MAX_DIGITOS) {
+            s_seed_buffer[s_seed_buffer_len++] = (char)c;
+            s_seed_buffer[s_seed_buffer_len]   = '\0';
+        }
+    }
+
+    if (IsKeyPressed(KEY_BACKSPACE) && s_seed_buffer_len > 0) {
+        s_seed_buffer_len--;
+        s_seed_buffer[s_seed_buffer_len] = '\0';
+    }
+
+    if (IsKeyPressed(KEY_ENTER) && s_seed_buffer_len > 0) {
+        /* strtoul devolve unsigned long; cabe em unsigned int (32-bit) já que
+         * limitamos a 10 dígitos no buffer. Overflow vira UINT_MAX, aceitável. */
+        unsigned long valor = strtoul(s_seed_buffer, NULL, 10);
+        iniciar_run_com_seed(ej, (unsigned int)valor);
+    }
+
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        ej->proximo_estado = ESTADO_MENU;
+    }
+}
+
+
+/* Encapsula o que rola quando o jogador confirma uma seed (Novo Jogo,
+ * Carregar Jogo ou Inserir Seed). Persiste a seed pra próximo "Carregar". */
+static void iniciar_run_com_seed(EstadoJogo *ej, unsigned int seed) {
+    profecia_gerar(&ej->profecia, seed);
+    obstaculos_gerar(ej, seed);
+
+    ej->salvamento.ultima_seed     = seed;
+    ej->salvamento.tem_ultima_seed = true;
+    salvamento_salvar(&ej->salvamento);
+
+    ej->proximo_estado = ESTADO_REVELACAO_PROFECIA;
 }
 
 /* --- Estado: REVELACAO_PROFECIA -------------------------------------------
@@ -242,6 +447,12 @@ static void atualizar_combate(EstadoJogo *ej) {
         ej->tiros_ativos = !ej->tiros_ativos;
     }
 
+    /* F3 pula pro próximo evento (próxima tela de cartas). Útil pra testar
+     * builds rápido sem esperar 60s. Sem gate de debug — feature pro jogador. */
+    if (IsKeyPressed(KEY_F3)) {
+        cronograma_pular_proxima_carta(&ej->cronograma);
+    }
+
     jogador_atualizar(&ej->jogador, ej->delta_tempo);
     profecia_motor_atualizar(ej);   /* condições de tempo/vida/combo */
 
@@ -264,8 +475,23 @@ static void atualizar_combate(EstadoJogo *ej) {
     obstaculos_resolver_inimigos(ej);
 
     if (ej->jogador.vida <= 0) {
+        /* Registra a derrota no leaderboard de biomassa antes de transitar.
+         * top_tempo ignora (filtra por venceu=true internamente). */
+        leaderboard_registrar(&ej->salvamento,
+                              ej->jogador.biomassa,
+                              ej->cronograma.tempo_decorrido,
+                              ej->profecia.seed,
+                              false);
+        salvamento_salvar(&ej->salvamento);
         ej->proximo_estado = ESTADO_GAME_OVER;
     } else if (ej->cronograma.vitoria) {
+        /* Registra a vitória nas duas tabelas. */
+        leaderboard_registrar(&ej->salvamento,
+                              ej->jogador.biomassa,
+                              ej->cronograma.tempo_decorrido,
+                              ej->profecia.seed,
+                              true);
+        salvamento_salvar(&ej->salvamento);
         ej->proximo_estado = ESTADO_VITORIA;
     } else if (cronograma_deve_abrir_cartas(&ej->cronograma)) {
         cartas_gerar_escolhas(ej);
@@ -355,13 +581,19 @@ static void atualizar_vitoria(EstadoJogo *ej) {
 static void jogo_desenhar(const EstadoJogo *ej) {
     switch (ej->estado_atual) {
         case ESTADO_MENU:
-            DrawText("AUGUR", LARGURA_TELA/2 - 140, 180, 100, GOLD);
-            DrawText("Bullet Hell Roguelite",
-                     LARGURA_TELA/2 - 140, 290, 24, GRAY);
-            DrawText("Pressione ENTER para iniciar",
-                     LARGURA_TELA/2 - 180, 440, 24, WHITE);
-            DrawText("PIF 2026.1 - CESAR School",
-                     LARGURA_TELA/2 - 130, ALTURA_TELA - 40, 16, DARKGRAY);
+            desenhar_menu(ej);
+            break;
+
+        case ESTADO_OPCOES:
+            desenhar_opcoes(ej);
+            break;
+
+        case ESTADO_LEADERBOARD:
+            leaderboard_desenhar(&ej->salvamento, s_leaderboard_aba_biomassa);
+            break;
+
+        case ESTADO_INSERIR_SEED:
+            desenhar_inserir_seed(ej);
             break;
 
         case ESTADO_REVELACAO_PROFECIA:
@@ -535,4 +767,130 @@ static void desenhar_grid_mundo(const Camera2D *camera) {
     for (float y = primeiro_y; y <= baixo; y += ESPACAMENTO) {
         DrawLineV((Vector2){ esquerda, y }, (Vector2){ direita, y }, COR_GRID);
     }
+}
+
+
+/* ============================================================================
+ * TELAS DE MENU — DESENHO
+ * --------------------------------------------------------------------------
+ * Todas em coord de tela (FORA de BeginMode2D). Layout simples: título no topo,
+ * lista de itens centralizada, cursor "> " antes do item selecionado.
+ * ========================================================================== */
+
+static void desenhar_menu(const EstadoJogo *ej) {
+    /* Título "AUGUR" no topo. */
+    DrawText("AUGUR", LARGURA_TELA/2 - 140, 80, 100, GOLD);
+    DrawText("Bullet Hell Roguelite",
+             LARGURA_TELA/2 - 140, 190, 24, GRAY);
+
+    /* Lista de itens. Reconstrói a janela visível (sem "Carregar Jogo" se não
+     * há save). Cursor pinta de GOLD; outros itens em LIGHTGRAY. */
+    ItemMenu mapa[MENU_TOTAL_ITENS];
+    int n = montar_menu_visivel(ej, mapa);
+
+    int x = LARGURA_TELA / 2 - 120;
+    int y = 280;
+    const int linha_altura = 38;
+
+    for (int i = 0; i < n; i++) {
+        const char *label = MENU_LABEL[mapa[i]];
+        Color cor   = (i == s_menu_item) ? GOLD : LIGHTGRAY;
+        const char *prefixo = (i == s_menu_item) ? "> " : "  ";
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%s%s", prefixo, label);
+        DrawText(buf, x, y + i * linha_altura, 28, cor);
+    }
+
+    DrawText("[UP/DOWN] navegar   [ENTER] selecionar",
+             LARGURA_TELA/2 - 230, ALTURA_TELA - 70, 18, DARKGRAY);
+    DrawText("PIF 2026.1 - CESAR School",
+             LARGURA_TELA/2 - 130, ALTURA_TELA - 40, 16, DARKGRAY);
+}
+
+
+static void desenhar_opcoes(const EstadoJogo *ej) {
+    DrawText("OPCOES", LARGURA_TELA/2 - 110, 60, 50, GOLD);
+    DrawText("Configuracao de video",
+             LARGURA_TELA/2 - 130, 130, 20, GRAY);
+
+    int x = LARGURA_TELA / 2 - 180;
+    int y = 200;
+    const int linha_altura = 38;
+
+    /* Resoluções: marca a aplicada no momento com "*". */
+    int res_atual = config_video_indice_resolucao_atual(&ej->salvamento);
+    for (int i = 0; i < RESOLUCOES_TOTAL; i++) {
+        char buf[80];
+        const char *marca = (i == res_atual) ? "*" : " ";
+        snprintf(buf, sizeof(buf), "%s %dx%d",
+                 marca,
+                 (int)RESOLUCOES_DISPONIVEIS[i].x,
+                 (int)RESOLUCOES_DISPONIVEIS[i].y);
+        Color cor   = (i == s_opcoes_item) ? GOLD : LIGHTGRAY;
+        const char *prefixo = (i == s_opcoes_item) ? "> " : "  ";
+        char linha[96];
+        snprintf(linha, sizeof(linha), "%s%s", prefixo, buf);
+        DrawText(linha, x, y + i * linha_altura, 24, cor);
+    }
+
+    /* Fullscreen toggle. */
+    {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "  Fullscreen: %s",
+                 ej->salvamento.fullscreen ? "ON" : "OFF");
+        int idx = RESOLUCOES_TOTAL;
+        Color cor   = (idx == s_opcoes_item) ? GOLD : LIGHTGRAY;
+        const char *prefixo = (idx == s_opcoes_item) ? "> " : "  ";
+        char linha[80];
+        snprintf(linha, sizeof(linha), "%s%s", prefixo, buf + 2);
+        DrawText(linha, x, y + idx * linha_altura, 24, cor);
+    }
+
+    /* Voltar. */
+    {
+        int idx = RESOLUCOES_TOTAL + 1;
+        Color cor   = (idx == s_opcoes_item) ? GOLD : LIGHTGRAY;
+        const char *prefixo = (idx == s_opcoes_item) ? "> " : "  ";
+        char linha[32];
+        snprintf(linha, sizeof(linha), "%sVoltar", prefixo);
+        DrawText(linha, x, y + idx * linha_altura + 20, 24, cor);
+    }
+
+    DrawText("[UP/DOWN] navegar   [ENTER] aplicar   [ESC] voltar",
+             LARGURA_TELA/2 - 290, ALTURA_TELA - 50, 18, DARKGRAY);
+}
+
+
+static void desenhar_inserir_seed(const EstadoJogo *ej) {
+    (void)ej;   /* não usa estado do jogo */
+
+    DrawText("INSERIR SEED", LARGURA_TELA/2 - 180, 100, 50, GOLD);
+    DrawText("Digite uma seed (0 a 4.294.967.295) e ENTER",
+             LARGURA_TELA/2 - 300, 180, 22, GRAY);
+
+    /* Caixa do input. */
+    int caixa_w = 420;
+    int caixa_h = 60;
+    int caixa_x = LARGURA_TELA/2 - caixa_w/2;
+    int caixa_y = 240;
+    DrawRectangleLines(caixa_x, caixa_y, caixa_w, caixa_h, GRAY);
+
+    /* Texto digitado. Cursor pulsa (visível em metade dos frames). */
+    const char *texto = (s_seed_buffer_len > 0) ? s_seed_buffer : "";
+    int texto_w = MeasureText(texto, 30);
+    int texto_x = caixa_x + 12;
+    int texto_y = caixa_y + 15;
+    DrawText(texto, texto_x, texto_y, 30, WHITE);
+
+    /* Cursor "|" pulsante. */
+    if (((int)(GetTime() * 2.0)) % 2 == 0) {
+        DrawText("|", texto_x + texto_w + 2, texto_y, 30, WHITE);
+    }
+
+    if (s_seed_buffer_len == 0) {
+        DrawText("(vazio)", texto_x, texto_y + 4, 22, DARKGRAY);
+    }
+
+    DrawText("[0-9] digitar   [BACKSPACE] apagar   [ENTER] confirmar   [ESC] voltar",
+             LARGURA_TELA/2 - 380, ALTURA_TELA - 50, 18, DARKGRAY);
 }

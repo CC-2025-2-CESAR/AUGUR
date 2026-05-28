@@ -180,3 +180,35 @@ void cronograma_consumir_carta_pendente(Cronograma *c) {
     c->cartas_pendentes = false;
     c->tempo_proxima_carta += CRONOGRAMA_INTERVALO_CARTAS_SEG;
 }
+
+
+void cronograma_pular_proxima_carta(Cronograma *c) {
+    if (!c) return;
+    if (c->vitoria || c->esperando_chefao_morrer) return;  /* sem sentido pulando aqui */
+
+    /* Próximo múltiplo de 60s estritamente maior que o tempo atual. Se já
+     * passamos do último minuto (4:00+), pula direto pro 5:00 e deixa o
+     * cronograma_atualizar spawnar o chefão no próximo frame. */
+    float prox_min = floorf(c->tempo_decorrido / CRONOGRAMA_INTERVALO_CARTAS_SEG) *
+                     CRONOGRAMA_INTERVALO_CARTAS_SEG + CRONOGRAMA_INTERVALO_CARTAS_SEG;
+    if (prox_min > CRONOGRAMA_DURACAO_SEG) {
+        prox_min = CRONOGRAMA_DURACAO_SEG;
+    }
+    c->tempo_decorrido = prox_min;
+
+    /* Reseta timer_interno dos eventos ativos pra evitar pico de spawns: ao
+     * pular X segundos, sem isso o `while (timer_interno <= 0)` em
+     * cronograma_atualizar cuspiria N inimigos de uma vez. */
+    for (int i = 0; i < c->qtd_eventos; i++) {
+        if (c->eventos[i].ativo) {
+            c->eventos[i].timer_interno = c->eventos[i].intervalo_spawn;
+        }
+    }
+
+    /* Se o pulo passou de um múltiplo de minuto, ativa o trigger de cartas
+     * (cronograma_atualizar também faria isso no próximo frame, mas explicito
+     * aqui evita um frame de delay e deixa o intent claro). */
+    if (c->tempo_decorrido >= c->tempo_proxima_carta) {
+        c->cartas_pendentes = true;
+    }
+}

@@ -15,6 +15,11 @@ Cada run tem uma **seed** visível na tela. Como a profecia é gerada de forma d
 - **Combos emergentes.** Fogo → Gelo = **Choque Térmico** (stun + próxima hit amplificada); Arcano em inimigo envenenado = dano dobrado.
 - **Inimigos atiram.** Ranged e chefão disparam um projétil padrão (não-elemental), tunável por tipo em `projeteis_inimigo_tipos.c`.
 - **Pontuação.** A biomassa coletada vira a pontuação final mostrada no game over / vitória.
+- **Menu inicial completo.** Novo Jogo, Carregar Jogo (replay da última seed), Inserir Seed manual, Leaderboard, Opções e Sair. Navegação com setas + ENTER.
+- **Leaderboard top-10.** Duas tabelas: por tempo (só vitórias, mais rápido primeiro) e por biomassa (vitórias e derrotas, maior pontuação primeiro). Persiste entre execuções; TAB alterna abas.
+- **Opções de vídeo.** 3 resoluções (1280×720, 1600×900, 1920×1080) e toggle de fullscreen. As preferências persistem no save.
+- **Seed manual.** Tela "Inserir Seed" aceita um número decimal e abre uma run determinística — basta compartilhar a seed pra um amigo jogar a mesma profecia.
+- **Skip de evento (F3).** Durante o combate, F3 pula pro próximo minuto cheio (próxima tela de cartas). Útil pra testar builds rápido. Se já estiver no último minuto, vai direto pro chefão.
 
 > A meta-progressão (desbloqueios persistentes entre runs) está **fora de escopo na versão atual** — a biomassa é usada como pontuação da run, não como moeda persistente. O design completo de referência (loop, Profecias, Dados, magias, meta-progressão) está no GDD: **`augur_gdd.pdf`**.
 
@@ -26,13 +31,21 @@ Cada run tem uma **seed** visível na tela. Como a profecia é gerada de forma d
 | Sofia (Dev 2) | Sistemas de Jogo | `cartas`, `dados`, `salvamento`, `hud` |
 | Luísa (Dev 3) | Conteúdo / Balanceamento | `inimigos_tipos`, `magias_tipos`, `magias_comportamento`, `projeteis_inimigo_tipos`, `profecia_efeitos`, `cronograma_eventos` |
 
+## Documentação
+
+Tudo em [`docs/`](docs/) — veja o [índice](docs/README.md) pra navegação rápida. Os guias principais:
+
+| Guia | Quando usar |
+|---|---|
+| [TUTORIAL_AMBIENTE.md](docs/TUTORIAL_AMBIENTE.md) | Setup do ambiente (MSYS2/Linux), instalação do Raylib e make. Leitura obrigatória no primeiro clone. |
+| [TUTORIAL_SPRITES.md](docs/TUTORIAL_SPRITES.md) | Como adicionar sprites PNG no lugar das primitivas (`DrawCircleV`). Inclui o módulo `assets` sugerido e exemplos completos. |
+| [dicionario.md](docs/dicionario.md) | Glossário de termos de jogos (AoE, DoT, kiting…) e da arquitetura do AUGUR (motor de profecia, riders, push-out…). |
+
 ## Requisitos
 
 - GCC 15+ via MSYS2 UCRT64
 - Raylib 5.5
 - GNU Make 4+
-
-> Setup completo do ambiente (Windows e Linux), incluindo como criar um Makefile do zero, está em [docs/TUTORIAL_AMBIENTE.md](docs/TUTORIAL_AMBIENTE.md). Glossário de termos de jogos e arquitetura usados no projeto: [docs/dicionario.md](docs/dicionario.md).
 
 ## Instalação rápida do ambiente
 
@@ -100,8 +113,10 @@ Jogo-PIF/
 |   |   |-- cronograma.c/.h            <- ENGINE da timeline 5min (Arthur)
 |   |   |-- cronograma_eventos.c/.h    <- TABELA de eventos da timeline (Luísa)
 |   |   |-- cartas.c/.h                <- sistema de upgrade (Sofia)
-|   |   |-- dados.c/.h                 <- sistema de dados (Sofia, stub)
-|   |   `-- salvamento.c/.h            <- save/load em arquivo (Sofia, stub)
+|   |   |-- dados.c/.h                 <- sistema de dados (Sofia)
+|   |   |-- salvamento.c/.h            <- save/load em arquivo (Sofia)
+|   |   |-- config_video.c/.h          <- resolução e fullscreen (Arthur)
+|   |   `-- leaderboard.c/.h           <- top-10 de runs (Arthur)
 |   |
 |   `-- interface/                     <- UI e HUD
 |       `-- hud.c/.h                   <- HUD durante combate (Sofia)
@@ -110,7 +125,9 @@ Jogo-PIF/
 |-- build/                             <- arquivos .o gerados pelo make
 |-- saves/                             <- progresso gerado em runtime
 |-- docs/                              <- guias internos pro grupo
+|   |-- README.md                      <- indice dos docs
 |   |-- TUTORIAL_AMBIENTE.md           <- setup do MSYS2/Linux + Makefile do zero
+|   |-- TUTORIAL_SPRITES.md            <- como adicionar sprites no lugar das primitivas
 |   |-- dicionario.md                  <- glossario de termos de jogos e arquitetura
 |   `-- issue-hud-cronograma.md        <- task tecnica pra Sofia (HUD VS-like)
 |-- Makefile
@@ -220,26 +237,59 @@ A struct raiz `EstadoJogo` (definida em `tipos.h`) carrega TODO o estado da run:
 - Qualquer função vê o contexto inteiro.
 - Fica óbvio quem depende de quê (basta olhar o `ej->...` no corpo da função).
 
+## Menu e fluxo de telas
+
+O jogo começa no menu principal. Cada item leva a um caminho:
+
+```text
+MENU ┬─ Novo Jogo ─────────► REVELACAO ─► COMBATE ─┬─► CARTAS_UPGRADE ─► COMBATE ...
+     │                                              ├─► GAME_OVER ──────► MENU
+     │                                              └─► VITORIA ────────► MENU
+     ├─ Carregar Jogo ─────► REVELACAO  (replay da ultima seed jogada)
+     ├─ Inserir Seed ──────► INSERIR_SEED ─► REVELACAO  (com a seed digitada)
+     ├─ Leaderboard ───────► LEADERBOARD ──► MENU
+     ├─ Opcoes ────────────► OPCOES ───────► MENU
+     └─ Sair
+```
+
+- **Novo Jogo:** sorteia uma seed aleatória.
+- **Carregar Jogo:** só aparece se já houve pelo menos uma run; reutiliza a última seed.
+- **Inserir Seed:** input numérico (0 a 4.294.967.295). Mesma seed → mesma profecia → mesmo mapa.
+- **Leaderboard:** TAB alterna entre tabela "Tempo" (só vitórias) e "Biomassa" (todas as runs).
+- **Opções:** lista de resoluções + toggle de fullscreen. As mudanças se aplicam na hora e persistem no save.
+
 ## Controles
 
+### No menu e nas telas
+| Tecla | Ação |
+|-------|------|
+| ↑ / ↓ ou W / S | Navegar entre itens |
+| ENTER ou ESPAÇO | Confirmar / Selecionar |
+| TAB | (Leaderboard) alterna entre Tempo e Biomassa |
+| BACKSPACE | (Inserir Seed) apagar último dígito |
+| ESC | Voltar pra tela anterior |
+
+### Durante o combate
 | Tecla | Ação |
 |-------|------|
 | WASD ou setinhas | Mover jogador |
-| ENTER | Confirmar / Avançar |
-| ESPAÇO | Iniciar combate / Confirmar carta |
 | Q | Liga/desliga tiros automáticos |
-| ESC | Pausar (durante combate) / Retomar |
+| ESC | Pausar / Retomar |
 | F1 | Alternar modo debug |
+| **F3** | **Pular pra próxima tela de cartas (skip de tempo)** |
+| ENTER | (Pausa / Game Over / Vitória) confirmar / voltar ao menu |
+| 1 / 2 / 3 | (Cartas de Upgrade) escolher carta |
+| R + 1/2/3 | (Cartas de Upgrade) rolar dado na carta |
 
 ## Conceitos obrigatórios de PIF implementados
 
 | Conceito | Onde |
 |----------|------|
-| Structs | `tipos.h` — `Jogador`, `Inimigo`, `Magia`, `ProjetilInimigo`, `Profecia`, `MotorProfecia`, `Cronograma`, `EstadoJogo`, `DadosSalvos`, `Carta`, `Dado`, `Obstaculo`, `EventoCronograma`, `ParametrosInimigo`, `ParametrosMagia` |
+| Structs | `tipos.h` — `Jogador`, `Inimigo`, `Magia`, `ProjetilInimigo`, `Profecia`, `MotorProfecia`, `Cronograma`, `EstadoJogo`, `DadosSalvos`, `EntradaLeaderboard`, `Carta`, `Dado`, `Obstaculo`, `EventoCronograma`, `ParametrosInimigo`, `ParametrosMagia` |
 | Ponteiros | `EstadoJogo *ej` em quase toda função; `proxima`/`proximo` nos nós das listas; ponteiro duplo `InimigoNo **` na remoção de mortos em `inimigos.c` |
 | Alocação dinâmica | `malloc`/`free` em `MagiaNo` (`magias.c`), `InimigoNo` (`inimigos.c`) e `ProjetilInimigoNo` (`projeteis_inimigo.c`); `free` ao morrer o nó e `_liberar_tudo` ao encerrar a run |
 | Listas encadeadas | `MagiaNo` (projéteis do jogador), `InimigoNo` (inimigos) e `ProjetilInimigoNo` (tiro de inimigo) — inserção na cabeça em O(1), remoção com ponteiro duplo |
-| Matrizes | `mods[3]` (profecia), `escolhas_upgrade[CARTAS_POR_ESCOLHA]`, `obstaculos[MAX_OBSTACULOS]`, `dados_ativos[MAX_DADOS_JOGADOR]`, `eventos[MAX_EVENTOS_CRONOGRAMA]`; tabelas `PARAMETROS_INIMIGO[]`, `PARAMETROS_MAGIA[]`, `COMPORTAMENTO_MAGIA[]`, `PARAMETROS_PROJETIL_INIMIGO[]`, `EVENTOS_CRONOGRAMA[]` |
-| Arquivo | `salvamento.c` (`saves/biomassa.dat`) — **stub dormente da Sofia**: na versão atual a meta-progressão está fora de escopo e a biomassa é só a pontuação da run. O requisito de Arquivo será cumprido pelo placar (`scores.dat`, top runs com seed) na entrega final — pendente da Sofia. |
+| Matrizes | `mods[3]` (profecia), `escolhas_upgrade[CARTAS_POR_ESCOLHA]`, `obstaculos[MAX_OBSTACULOS]`, `dados_ativos[MAX_DADOS_JOGADOR]`, `eventos[MAX_EVENTOS_CRONOGRAMA]`, `top_tempo[LEADERBOARD_TAM]` e `top_biomassa[LEADERBOARD_TAM]` (leaderboards); tabelas `PARAMETROS_INIMIGO[]`, `PARAMETROS_MAGIA[]`, `COMPORTAMENTO_MAGIA[]`, `PARAMETROS_PROJETIL_INIMIGO[]`, `EVENTOS_CRONOGRAMA[]`, `RESOLUCOES_DISPONIVEIS[]` |
+| Arquivo | `salvamento.c` (`saves/biomassa.dat`) — **cumprido.** Persiste a `DadosSalvos` inteira em binário via `fwrite`/`fread`, incluindo config de vídeo, última seed jogada (pra Carregar Jogo), e os dois leaderboards top-10. Validação de versão (`SAVE_VERSAO_ATUAL`) descarta saves antigos automaticamente. |
 
 > **Sobre a CLI-LIB.** O spec do PIF cita a [`cli-lib`](https://github.com/tgfb/cli-lib/) como biblioteca padrão sugerida (terminal-based). AUGUR optou por **Raylib** — também permitido pelo enunciado: "É permitido usar outra biblioteca para jogos, entretanto seu uso é de responsabilidade do grupo". A justificativa é técnica: bullet hell precisa renderizar dezenas de projéteis com colisão circular precisa, e câmera 2D rolando suavemente pelo mundo — coisas que ficam pesadas no terminal.
