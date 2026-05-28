@@ -7,7 +7,7 @@ Tudo que o grupo precisa pra navegar o projeto além do `README.md` principal. C
 | Arquivo | Pra que serve |
 |---|---|
 | [TUTORIAL_AMBIENTE.md](TUTORIAL_AMBIENTE.md) | Setup completo do ambiente (MSYS2/UCRT64 no Windows, Linux), instalação do Raylib e make, troubleshooting de compilação. Caminho pra quem está clonando o repo pela primeira vez. |
-| [TUTORIAL_SPRITES.md](TUTORIAL_SPRITES.md) | Como trocar as primitivas (`DrawCircleV`) por sprites PNG. Onde colocar os arquivos, formato recomendado, criação do módulo `assets`, integração com as funções `_desenhar`, fallback pra sprite inexistente. |
+| [TUTORIAL_SPRITES.md](TUTORIAL_SPRITES.md) | Guia da Luísa pra entregar sprite sheets — onde colocar PNG, naming dos arquivos (mapeado pro que ela já entregou), formato com canal alpha, layout de frames numa sheet, checklist. **Não cobre integração no engine** (isso fica com outro dev). |
 
 ## Referências
 
