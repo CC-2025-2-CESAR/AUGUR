@@ -1,222 +1,149 @@
-# Tutorial: como adicionar sprites no AUGUR
+# Guia de entrega de sprites — Luísa
 
-Hoje o jogo renderiza tudo com primitivas (`DrawCircleV`, `DrawRectangle`). Este tutorial mostra como trocar essas primitivas por sprites PNG sem quebrar nada — e qual o caminho mais limpo de organizar isso no projeto.
+Este doc é especificamente pra Luísa. Aqui está como organizar e entregar os PNGs das sprite sheets do AUGUR. **A integração no engine (carregar texturas, desenhar, animar) é trabalho de outro dev** — você não precisa mexer no código C.
 
-## 1. Onde colocar os arquivos
+Foque em: estrutura de pastas, formato dos arquivos, naming, e como cada sheet deve ser organizada.
 
-Crie os PNGs em `assets/sprites/`. A pasta já existe no repositório (com `.gitkeep`). Use nomes descritivos e em ASCII (sem acento, espaço ou maiúscula misturada):
+## 1. Onde colocar as sprites
+
+Todos os PNGs vão pra `assets/sprites/`. A pasta já existe no repo (com `.gitkeep`):
 
 ```
-assets/sprites/
-├── jogador.png
-├── inimigo_corpo_a_corpo.png
-├── inimigo_a_distancia.png
-├── inimigo_elite.png
-├── inimigo_chefe.png
-├── magia_fogo.png
-├── magia_gelo.png
-├── magia_arcano.png
-├── obstaculo_arvore.png
-└── obstaculo_pedra.png
+augur/
+├── assets/
+│   └── sprites/   ← aqui dentro
+├── docs/
+├── src/
+└── ...
 ```
 
-A regra: **um sprite por enum**. Se o `TipoInimigo` tem 4 valores, são 4 sprites. Se adicionar um inimigo novo no enum, adiciona o sprite com o mesmo padrão de nome.
+Crie subpastas se quiser organizar por categoria, ou deixe tudo em `sprites/` direto — fica a teu critério. O importante é o **nome do arquivo** seguir a convenção da §3.
 
-## 2. Formato recomendado
+## 2. Formato do arquivo
 
-- **PNG com canal alpha** (transparência). O Raylib lê PNG nativamente — não precisa de lib extra.
-- **Tamanhos por tipo de entidade**:
-  - Jogador e inimigos: **32×32** ou **64×64**.
-  - Magias/projéteis: **16×16** ou **24×24** (são pequenos na tela).
-  - Obstáculos: **48×48** ou **64×64**.
-  - Chefão: **128×128** (é maior na tela).
-- **Pivot**: o sprite é desenhado a partir do canto superior esquerdo por padrão. Pra centralizar, subtraia `largura/2, altura/2` na hora de desenhar (ver §4).
+- **Sempre PNG.** O Raylib lê PNG nativamente.
+- **Canal alpha obrigatório.** O fundo precisa ser **transparente**, nunca branco ou preto sólido.
+- **Resolução nativa** (sem upscaling artificial). Se quiser entregar versões em 2x ou 4x pra preview, pode — mas o engine vai usar a versão base.
+- **Pivot pensado pro centro da entidade.** O jogador, inimigos e magias são desenhados centrados na posição do objeto no jogo. Se você desenhar o personagem encostado no canto superior esquerdo do canvas, ele vai aparecer deslocado em tela. Mantenha o "centro de massa" da entidade no centro do canvas.
 
-## 3. Como carregar os sprites no código
+## 3. Convenção de naming (mapeada pro que você já entregou)
 
-A forma limpa é criar um módulo `assets` centralizado que carrega tudo uma vez no `jogo_inicializar` e libera no `jogo_finalizar`. Não carregue sprites dentro das funções `_desenhar` — `LoadTexture` lê o arquivo do disco e enviaria pra GPU a cada frame.
+Os nomes ficam em **snake_case**, **ASCII** (sem acento), todos minúsculos.
 
-### 3.1 — Criar `src/core/assets.h`
+### Jogador
 
-```c
-#ifndef ASSETS_H
-#define ASSETS_H
+| Arquivo | O que é |
+|---|---|
+| `augur_sheet.png` | Sprite sheet do personagem principal (Augur) com todas as animações |
 
-#include "raylib.h"
-#include "tipos.h"
+### Inimigos
 
-/* Sprites carregados na inicialização. Acesso direto (struct global). */
-typedef struct {
-    Texture2D jogador;
-    Texture2D inimigos[4];          /* indexado por TipoInimigo */
-    Texture2D magias[ELEMENTO_TOTAL];
-    Texture2D obstaculos[OBSTACULO_TIPO_TOTAL];
-} Assets;
+| Arquivo | O que é |
+|---|---|
+| `arauto_sheet.png`   | Sprite sheet do Arauto |
+| `carnical_sheet.png` | Sprite sheet do Carnical |
+| `oraculo_sheet.png`  | Sprite sheet do Oráculo |
+| `vidente_sheet.png`  | Sprite sheet do Vidente |
 
-extern Assets g_assets;
+### Magias (6 elementos)
 
-/* Chamar uma vez em jogo_inicializar. Tenta carregar cada sprite; se falhar
- * (arquivo inexistente), deixa texture.id = 0 — _desenhar checa isso e cai
- * em fallback. */
-void assets_carregar(void);
+| Arquivo | Elemento |
+|---|---|
+| `magia_fogo.png`      | Fogo |
+| `magia_gelo.png`      | Gelo |
+| `magia_relampago.png` | Relâmpago |
+| `magia_veneno.png`    | Veneno |
+| `magia_arcano.png`    | Arcano |
+| `magia_sombra.png`    | Sombra |
 
-/* Chamar uma vez em jogo_finalizar. Libera todas as texturas. */
-void assets_liberar(void);
+### Background / mapa
 
-#endif /* ASSETS_H */
-```
+| Arquivo | O que é |
+|---|---|
+| `tileset.png`     | Tileset principal (todos os tiles juntos numa grid) |
+| `tile_*.png`      | Tiles individuais, se quiser entregar separados |
 
-### 3.2 — Criar `src/core/assets.c`
+### Versões escaladas (opcional)
 
-```c
-#include "assets.h"
+Se você entregar `augur_sheet_x4.png` ou `tileset_x2.png`, esses são versões pra preview — o engine vai usar **a versão base** (sem sufixo `_xN`). Mantenha as duas no zip se ajuda no seu fluxo de trabalho.
 
-Assets g_assets = {0};
+## 4. Tamanhos sugeridos
 
-void assets_carregar(void) {
-    g_assets.jogador = LoadTexture("assets/sprites/jogador.png");
+| Tipo de entidade | Frame individual |
+|---|---|
+| Augur (jogador) | 32×32 ou 64×64 |
+| Inimigos comuns (arauto, vidente, oráculo) | 32×32 ou 64×64 |
+| Inimigo grande / chefe (carnical) | 64×64 ou 128×128 |
+| Magias / projéteis | 16×16 ou 24×24 |
+| Tiles de mapa | 32×32 (padrão de tileset) |
 
-    g_assets.inimigos[INIMIGO_CORPO_A_CORPO] =
-        LoadTexture("assets/sprites/inimigo_corpo_a_corpo.png");
-    g_assets.inimigos[INIMIGO_A_DISTANCIA]   =
-        LoadTexture("assets/sprites/inimigo_a_distancia.png");
-    g_assets.inimigos[INIMIGO_ELITE]         =
-        LoadTexture("assets/sprites/inimigo_elite.png");
-    g_assets.inimigos[INIMIGO_CHEFE]         =
-        LoadTexture("assets/sprites/inimigo_chefe.png");
+Se o estilo do jogo ficar melhor com pixel art chunky, vai no 32×32. Se quiser detalhe, 64×64. Mantenha **consistência entre entidades do mesmo tipo** (todos os inimigos comuns no mesmo tamanho fica mais fácil pro engine alinhar).
 
-    g_assets.magias[ELEMENTO_FOGO]       = LoadTexture("assets/sprites/magia_fogo.png");
-    g_assets.magias[ELEMENTO_GELO]       = LoadTexture("assets/sprites/magia_gelo.png");
-    g_assets.magias[ELEMENTO_RELAMPAGO]  = LoadTexture("assets/sprites/magia_relampago.png");
-    g_assets.magias[ELEMENTO_VENENO]     = LoadTexture("assets/sprites/magia_veneno.png");
-    g_assets.magias[ELEMENTO_ARCANO]     = LoadTexture("assets/sprites/magia_arcano.png");
-    g_assets.magias[ELEMENTO_SOMBRA]     = LoadTexture("assets/sprites/magia_sombra.png");
+## 5. Como organizar os frames de uma sprite sheet
 
-    g_assets.obstaculos[OBSTACULO_ARVORE] = LoadTexture("assets/sprites/obstaculo_arvore.png");
-    g_assets.obstaculos[OBSTACULO_PEDRA]  = LoadTexture("assets/sprites/obstaculo_pedra.png");
-}
+Uma sprite sheet é um único PNG com várias frames lado a lado. A convenção que o engine vai esperar:
 
-void assets_liberar(void) {
-    UnloadTexture(g_assets.jogador);
-    for (int i = 0; i < 4; i++) UnloadTexture(g_assets.inimigos[i]);
-    for (int i = 0; i < ELEMENTO_TOTAL; i++) UnloadTexture(g_assets.magias[i]);
-    for (int i = 0; i < OBSTACULO_TIPO_TOTAL; i++) UnloadTexture(g_assets.obstaculos[i]);
-}
-```
+- **Linhas (rows) = animações diferentes** (idle, walk, attack, hit, death).
+- **Colunas (columns) = frames de UMA animação**, em ordem.
+- **Todos os frames têm o mesmo tamanho.** Se a frame é 32×32 e a animação tem 4 frames, a linha mede 128 px de largura.
 
-> **Importante:** `LoadTexture` exige que `InitWindow` já tenha rolado. Chame `assets_carregar()` DENTRO de `jogo_inicializar`, não antes do `InitWindow`.
+### Layout sugerido para `augur_sheet.png`
 
-### 3.3 — Plugar no `main.c`
+| Linha | Animação |
+|---|---|
+| 0 | Idle (parado) |
+| 1 | Walk (movendo) |
+| 2 | Attack (lançando magia) |
+| 3 | Hit (tomando dano) |
+| 4 | Death (morrendo) |
 
-```c
-#include "assets.h"
-/* ... */
-static void jogo_inicializar(EstadoJogo *ej) {
-    /* ... linhas existentes ... */
-    assets_carregar();   /* NOVA */
-}
+Se uma animação tem menos frames que outra, deixa o resto da linha **vazio** (transparente) — não tem problema. O importante é não sobrar uma frame "meia preenchida".
 
-static void jogo_finalizar(EstadoJogo *ej) {
-    /* ... linhas existentes ... */
-    assets_liberar();    /* NOVA */
-}
-```
+### Para inimigos
 
-## 4. Como integrar com as funções `_desenhar`
+Mesmo padrão. Mínimo recomendado:
 
-Cada entidade já tem uma função `_desenhar` (`jogador_desenhar`, `inimigos_desenhar`, `magias_desenhar` etc.). A integração é trocar `DrawCircleV` por `DrawTexturePro` ou `DrawTextureV`, mantendo um fallback caso o sprite não tenha carregado.
+| Linha | Animação |
+|---|---|
+| 0 | Idle |
+| 1 | Walk |
+| 2 | Attack (corpo a corpo ou ranged) |
+| 3 | Death |
 
-### Padrão de fallback
+`hit` é opcional se você não quiser desenhar — o engine pode aplicar um flash branco como fallback.
 
-```c
-static void desenhar_um_inimigo(const Inimigo *i) {
-    Texture2D tex = g_assets.inimigos[i->tipo];
+### Para magias
 
-    /* texture.id == 0 = sprite não carregou (arquivo inexistente).
-     * Cai no fallback de primitiva pra não quebrar o jogo. */
-    if (tex.id == 0) {
-        DrawCircleV(i->posicao, i->raio_visual, i->cor);
-        return;
-    }
+Magias hoje são círculos coloridos no engine — você pode entregar:
 
-    /* DrawTexturePro permite escala, rotação e pivot. Aqui centralizamos no
-     * meio da entidade: source = sprite inteiro, dest centrado em i->posicao
-     * com tamanho igual ao raio_visual * 2. */
-    Rectangle src  = (Rectangle){ 0, 0, (float)tex.width, (float)tex.height };
-    Rectangle dest = (Rectangle){
-        i->posicao.x, i->posicao.y,
-        i->raio_visual * 2.0f, i->raio_visual * 2.0f
-    };
-    Vector2 origem = (Vector2){ i->raio_visual, i->raio_visual };
-    DrawTexturePro(tex, src, dest, origem, 0.0f, WHITE);
-}
-```
+- **PNG estático** (1 frame): o engine só usa essa imagem girando na direção do disparo.
+- **PNG animado** (sheet com várias frames): cria um loop visual no projétil (ex.: chama tremulando).
 
-`WHITE` no último argumento = tinta neutra (o sprite aparece com cores originais). Pra aplicar tinte (ex.: piscar vermelho ao tomar dano), troca por `(Color){255,100,100,255}`.
+Pra simplificar, **uma única frame por elemento já cobre tudo**. Se animar, segue o mesmo padrão (linhas = animações).
 
-### Onde aplicar no AUGUR
+## 6. Checklist antes de commitar
 
-Os arquivos com função `_desenhar` que vão receber sprites:
+Antes de mandar uma sprite pro repo:
 
-| Arquivo | Função | O que renderizar |
-|---|---|---|
-| `src/entidades/jogador.c` | `jogador_desenhar` | `g_assets.jogador` |
-| `src/entidades/inimigos.c` | `inimigos_desenhar` | `g_assets.inimigos[tipo]` |
-| `src/entidades/magias.c` | `magias_desenhar` | `g_assets.magias[elemento]` |
-| `src/entidades/projeteis_inimigo.c` | `projeteis_inimigo_desenhar` | (mantém primitiva ou novo sprite) |
-| `src/entidades/obstaculos.c` | `obstaculos_desenhar` | `g_assets.obstaculos[tipo]` |
+- [ ] PNG com **fundo transparente** (não branco, não preto sólido).
+- [ ] Nome em **snake_case ASCII**, sem acento nem espaço.
+- [ ] Sprite sheet com **frames de mesmo tamanho** dentro do grid.
+- [ ] **Pivot centralizado** (centro de massa no meio do canvas).
+- [ ] Versão **base** (`*_sheet.png` sem sufixo `_xN`) existe — versões escaladas são opcionais.
+- [ ] Arquivo dentro de `assets/sprites/`.
 
-## 5. Rotação de sprites pra magias
+## 7. Onde tirar dúvidas
 
-Magias têm `velocidade` (Vector2), então dá pra orientar o sprite na direção do projétil:
+- Manda no grupo do Discord/WhatsApp do projeto — o Arthur ou a Sofia respondem rápido.
+- Se quiser referência visual de como o Raylib trata sprites: <https://www.raylib.com/cheatsheet/cheatsheet.html> (seção "Texture Loading and Drawing"). **Você não precisa ler isso pra entregar**, é só pra curiosidade.
 
-```c
-float angulo = atan2f(m->velocidade.y, m->velocidade.x) * RAD2DEG;
-DrawTexturePro(tex, src, dest, origem, angulo, WHITE);
-```
+---
 
-`RAD2DEG` é macro do Raylib. O sprite deve estar desenhado "apontando pra direita" no arquivo PNG (lado positivo do X) pra rotação fazer sentido.
+**Resumo do que você precisa fazer:**
 
-## 6. Animação simples (opcional)
+1. Desenha as sprites em PNG com alpha.
+2. Salva em `assets/sprites/` seguindo o naming da §3.
+3. Confirma o checklist da §6.
+4. Commita e abre PR.
 
-Se algum sprite for um *sprite sheet* (várias frames lado a lado num PNG), use `source` pra recortar a frame atual:
-
-```c
-int frame_atual = ((int)(GetTime() * 8.0f)) % 4;   /* 8 fps, 4 frames */
-Rectangle src = (Rectangle){
-    frame_atual * 32, 0,   /* x do frame, y=0 */
-    32, 32                 /* tamanho de uma frame */
-};
-DrawTexturePro(tex, src, dest, origem, 0.0f, WHITE);
-```
-
-## 7. Atualizar o Makefile (não precisa por enquanto)
-
-Como `LoadTexture` lê os arquivos em tempo de execução pelo caminho `assets/sprites/jogador.png` relativo ao binário, **basta rodar o jogo a partir da raiz do repo**. Se quiser empacotar tudo numa pasta de release, copie `assets/` pra perto do `.exe`:
-
-```makefile
-# Sugestão pra um target "release" futuro
-release: $(EXECUTAVEL)
-	mkdir -p release
-	cp $(EXECUTAVEL) release/
-	cp -r assets/ release/
-```
-
-Não é obrigatório agora — o `mingw32-make` atual já funciona porque o `.exe` é gerado na raiz do repo, onde `assets/` está.
-
-## 8. Convenções e checklist
-
-Antes de commitar sprites:
-
-- [ ] PNG com fundo transparente (não branco).
-- [ ] Nome em ASCII, snake_case, sem acento.
-- [ ] Tamanho aproximado do `raio_visual` da entidade (não muito maior — pixel art exagerado fica feio).
-- [ ] Pivot pensado pro centro (não pra um canto).
-- [ ] Adicionou em `assets_carregar` e `assets_liberar` se for uma entidade nova.
-- [ ] `mingw32-make` builda limpo (`LoadTexture` em sprite inexistente só loga warning — não quebra).
-- [ ] Testou que o fallback de primitiva ainda funciona deletando temporariamente o `.png` e abrindo o jogo.
-
-## 9. Onde ler mais
-
-- Raylib: <https://www.raylib.com/cheatsheet/cheatsheet.html> — seção "Texture Loading and Drawing".
-- Exemplos oficiais: <https://github.com/raysan5/raylib/tree/master/examples/textures>.
+O dev de engine vai puxar daí.

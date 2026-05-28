@@ -10,12 +10,14 @@ Cada run tem uma **seed** visível na tela. Como a profecia é gerada de forma d
 
 ### Sistemas implementados
 
-- **Profecia ativa em combate.** 6 Elementos × 10 Condições × 12 Efeitos (conforme o GDD). O motor avalia as 3 condições durante a run e dispara os efeitos; magnitudes e limiares são 100% tunáveis em `profecia_efeitos.c`.
+- **Profecia ativa em combate.** 6 Elementos × 4 Condições × 6 Efeitos (pool encolhido pra ficar legível). O motor avalia as 3 condições durante a run e dispara os efeitos; magnitudes e limiares são 100% tunáveis em `profecia_efeitos.c`. O texto da revelação mostra a magnitude explícita (`Explosao de Fogo (40 dano, raio 150)`) — sem jargão.
+- **Escolha da Magia Inicial.** Depois da revelação, o jogador escolhe 1 de 3 magias sorteadas; pelo menos uma das opções é **sinergética** (elemento bate com algum mod da profecia). A magia escolhida vira um 4º elemento no auto-fire, somando ao ciclo dos 3 elementos da profecia.
 - **Poderes por elemento.** Cada magia tem um comportamento de status: Gelo congela, Relâmpago salta entre inimigos próximos, Veneno aplica DoT acumulativo, Fogo/Arcano/Sombra são projéteis puros. Tudo tunável em `magias_comportamento.c`.
 - **Combos emergentes.** Fogo → Gelo = **Choque Térmico** (stun + próxima hit amplificada); Arcano em inimigo envenenado = dano dobrado.
 - **Inimigos atiram.** Ranged e chefão disparam um projétil padrão (não-elemental), tunável por tipo em `projeteis_inimigo_tipos.c`.
 - **Pontuação.** A biomassa coletada vira a pontuação final mostrada no game over / vitória.
-- **Menu inicial completo.** Novo Jogo, Carregar Jogo (replay da última seed), Inserir Seed manual, Leaderboard, Opções e Sair. Navegação com setas + ENTER.
+- **Menu inicial completo.** Novo Jogo, Carregar Jogo (replay da última seed), Inserir Seed manual, **Histórico** (lista das últimas 10 seeds jogadas), Leaderboard, Opções e Sair. Navegação com setas + ENTER.
+- **Histórico de seeds.** Persiste as últimas 10 seeds jogadas (mais recente em cima) com resultado V/D, tempo e biomassa. Clica em ENTER pra recarregar qualquer uma — útil pra revisitar uma profecia interessante sem precisar anotar.
 - **Leaderboard top-10.** Duas tabelas: por tempo (só vitórias, mais rápido primeiro) e por biomassa (vitórias e derrotas, maior pontuação primeiro). Persiste entre execuções; TAB alterna abas.
 - **Opções de vídeo.** 3 resoluções (1280×720, 1600×900, 1920×1080) e toggle de fullscreen. As preferências persistem no save.
 - **Seed manual.** Tela "Inserir Seed" aceita um número decimal e abre uma run determinística — basta compartilhar a seed pra um amigo jogar a mesma profecia.
@@ -38,7 +40,7 @@ Tudo em [`docs/`](docs/) — veja o [índice](docs/README.md) pra navegação r�
 | Guia | Quando usar |
 |---|---|
 | [TUTORIAL_AMBIENTE.md](docs/TUTORIAL_AMBIENTE.md) | Setup do ambiente (MSYS2/Linux), instalação do Raylib e make. Leitura obrigatória no primeiro clone. |
-| [TUTORIAL_SPRITES.md](docs/TUTORIAL_SPRITES.md) | Como adicionar sprites PNG no lugar das primitivas (`DrawCircleV`). Inclui o módulo `assets` sugerido e exemplos completos. |
+| [TUTORIAL_SPRITES.md](docs/TUTORIAL_SPRITES.md) | Guia da Luísa pra entregar as sprite sheets — pasta, naming, formato PNG, layout de frames, checklist. Sem código (a integração no engine fica em tarefa separada). |
 | [dicionario.md](docs/dicionario.md) | Glossário de termos de jogos (AoE, DoT, kiting…) e da arquitetura do AUGUR (motor de profecia, riders, push-out…). |
 
 ## Requisitos
@@ -116,7 +118,9 @@ Jogo-PIF/
 |   |   |-- dados.c/.h                 <- sistema de dados (Sofia)
 |   |   |-- salvamento.c/.h            <- save/load em arquivo (Sofia)
 |   |   |-- config_video.c/.h          <- resolução e fullscreen (Arthur)
-|   |   `-- leaderboard.c/.h           <- top-10 de runs (Arthur)
+|   |   |-- leaderboard.c/.h           <- top-10 de runs (Arthur)
+|   |   |-- historico.c/.h             <- últimas 10 seeds jogadas (Arthur)
+|   |   `-- magia_inicial.c/.h         <- sorteio + render da escolha (Arthur)
 |   |
 |   `-- interface/                     <- UI e HUD
 |       `-- hud.c/.h                   <- HUD durante combate (Sofia)
@@ -242,11 +246,12 @@ A struct raiz `EstadoJogo` (definida em `tipos.h`) carrega TODO o estado da run:
 O jogo começa no menu principal. Cada item leva a um caminho:
 
 ```text
-MENU ┬─ Novo Jogo ─────────► REVELACAO ─► COMBATE ─┬─► CARTAS_UPGRADE ─► COMBATE ...
-     │                                              ├─► GAME_OVER ──────► MENU
-     │                                              └─► VITORIA ────────► MENU
+MENU ┬─ Novo Jogo ─────────► REVELACAO ─► ESCOLHA_MAGIA ─► COMBATE ─┬─► CARTAS_UPGRADE ─► COMBATE ...
+     │                                                               ├─► GAME_OVER ──────► MENU
+     │                                                               └─► VITORIA ────────► MENU
      ├─ Carregar Jogo ─────► REVELACAO  (replay da ultima seed jogada)
      ├─ Inserir Seed ──────► INSERIR_SEED ─► REVELACAO  (com a seed digitada)
+     ├─ Historico  ────────► HISTORICO ───► REVELACAO  (recarrega seed da lista)
      ├─ Leaderboard ───────► LEADERBOARD ──► MENU
      ├─ Opcoes ────────────► OPCOES ───────► MENU
      └─ Sair
@@ -255,6 +260,9 @@ MENU ┬─ Novo Jogo ─────────► REVELACAO ─► COMBATE �
 - **Novo Jogo:** sorteia uma seed aleatória.
 - **Carregar Jogo:** só aparece se já houve pelo menos uma run; reutiliza a última seed.
 - **Inserir Seed:** input numérico (0 a 4.294.967.295). Mesma seed → mesma profecia → mesmo mapa.
+- **Histórico:** só aparece se já houve pelo menos uma run. Lista as últimas 10 seeds jogadas com resultado (V/D), tempo e biomassa. ENTER recarrega a selecionada.
+- **REVELACAO:** mostra os 3 mods da profecia com magnitude explícita; ESPAÇO/ENTER avança.
+- **ESCOLHA_MAGIA:** 3 cards de magia sorteados; pelo menos 1 é sinergético com a profecia. ←/→ ou 1/2/3 escolhem; ENTER confirma.
 - **Leaderboard:** TAB alterna entre tabela "Tempo" (só vitórias) e "Biomassa" (todas as runs).
 - **Opções:** lista de resoluções + toggle de fullscreen. As mudanças se aplicam na hora e persistem no save.
 
@@ -263,7 +271,9 @@ MENU ┬─ Novo Jogo ─────────► REVELACAO ─► COMBATE �
 ### No menu e nas telas
 | Tecla | Ação |
 |-------|------|
-| ↑ / ↓ ou W / S | Navegar entre itens |
+| ↑ / ↓ ou W / S | Navegar entre itens (menu, Opções, Histórico) |
+| ← / → ou A / D | Navegar entre cards (Escolha de Magia Inicial) |
+| 1 / 2 / 3 | (Escolha de Magia) salta direto pro card |
 | ENTER ou ESPAÇO | Confirmar / Selecionar |
 | TAB | (Leaderboard) alterna entre Tempo e Biomassa |
 | BACKSPACE | (Inserir Seed) apagar último dígito |
@@ -285,11 +295,11 @@ MENU ┬─ Novo Jogo ─────────► REVELACAO ─► COMBATE �
 
 | Conceito | Onde |
 |----------|------|
-| Structs | `tipos.h` — `Jogador`, `Inimigo`, `Magia`, `ProjetilInimigo`, `Profecia`, `MotorProfecia`, `Cronograma`, `EstadoJogo`, `DadosSalvos`, `EntradaLeaderboard`, `Carta`, `Dado`, `Obstaculo`, `EventoCronograma`, `ParametrosInimigo`, `ParametrosMagia` |
+| Structs | `tipos.h` — `Jogador`, `Inimigo`, `Magia`, `ProjetilInimigo`, `Profecia`, `MotorProfecia`, `Cronograma`, `EstadoJogo`, `DadosSalvos`, `EntradaLeaderboard`, `EntradaHistorico`, `OpcaoMagiaInicial`, `Carta`, `Dado`, `Obstaculo`, `EventoCronograma`, `ParametrosInimigo`, `ParametrosMagia` |
 | Ponteiros | `EstadoJogo *ej` em quase toda função; `proxima`/`proximo` nos nós das listas; ponteiro duplo `InimigoNo **` na remoção de mortos em `inimigos.c` |
 | Alocação dinâmica | `malloc`/`free` em `MagiaNo` (`magias.c`), `InimigoNo` (`inimigos.c`) e `ProjetilInimigoNo` (`projeteis_inimigo.c`); `free` ao morrer o nó e `_liberar_tudo` ao encerrar a run |
 | Listas encadeadas | `MagiaNo` (projéteis do jogador), `InimigoNo` (inimigos) e `ProjetilInimigoNo` (tiro de inimigo) — inserção na cabeça em O(1), remoção com ponteiro duplo |
-| Matrizes | `mods[3]` (profecia), `escolhas_upgrade[CARTAS_POR_ESCOLHA]`, `obstaculos[MAX_OBSTACULOS]`, `dados_ativos[MAX_DADOS_JOGADOR]`, `eventos[MAX_EVENTOS_CRONOGRAMA]`, `top_tempo[LEADERBOARD_TAM]` e `top_biomassa[LEADERBOARD_TAM]` (leaderboards); tabelas `PARAMETROS_INIMIGO[]`, `PARAMETROS_MAGIA[]`, `COMPORTAMENTO_MAGIA[]`, `PARAMETROS_PROJETIL_INIMIGO[]`, `EVENTOS_CRONOGRAMA[]`, `RESOLUCOES_DISPONIVEIS[]` |
-| Arquivo | `salvamento.c` (`saves/biomassa.dat`) — **cumprido.** Persiste a `DadosSalvos` inteira em binário via `fwrite`/`fread`, incluindo config de vídeo, última seed jogada (pra Carregar Jogo), e os dois leaderboards top-10. Validação de versão (`SAVE_VERSAO_ATUAL`) descarta saves antigos automaticamente. |
+| Matrizes | `mods[3]` (profecia), `escolhas_upgrade[CARTAS_POR_ESCOLHA]`, `opcoes_magia[3]` (escolha de magia inicial), `obstaculos[MAX_OBSTACULOS]`, `dados_ativos[MAX_DADOS_JOGADOR]`, `eventos[MAX_EVENTOS_CRONOGRAMA]`, `top_tempo[LEADERBOARD_TAM]` e `top_biomassa[LEADERBOARD_TAM]` (leaderboards), `historico[HISTORICO_SEEDS_TAM]` (seeds passadas); tabelas `PARAMETROS_INIMIGO[]`, `PARAMETROS_MAGIA[]`, `COMPORTAMENTO_MAGIA[]`, `PARAMETROS_PROJETIL_INIMIGO[]`, `EVENTOS_CRONOGRAMA[]`, `RESOLUCOES_DISPONIVEIS[]`, `NOMES_MAGIA[ELEMENTO_TOTAL][6]` (matriz de nomes por elemento × raridade) |
+| Arquivo | `salvamento.c` (`saves/biomassa.dat`) — **cumprido.** Persiste a `DadosSalvos` inteira em binário via `fwrite`/`fread`, incluindo config de vídeo, última seed jogada (Carregar Jogo), os dois leaderboards top-10 e o histórico das últimas 10 seeds. Validação de versão (`SAVE_VERSAO_ATUAL`) descarta saves antigos automaticamente. |
 
 > **Sobre a CLI-LIB.** O spec do PIF cita a [`cli-lib`](https://github.com/tgfb/cli-lib/) como biblioteca padrão sugerida (terminal-based). AUGUR optou por **Raylib** — também permitido pelo enunciado: "É permitido usar outra biblioteca para jogos, entretanto seu uso é de responsabilidade do grupo". A justificativa é técnica: bullet hell precisa renderizar dezenas de projéteis com colisão circular precisa, e câmera 2D rolando suavemente pelo mundo — coisas que ficam pesadas no terminal.
