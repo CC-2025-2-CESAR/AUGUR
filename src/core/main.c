@@ -43,6 +43,7 @@
 #include "config_video.h"   /* aplica resolução e fullscreen do save */
 #include "leaderboard.h"    /* top-10 de runs */
 #include "historico.h"      /* últimas 10 seeds jogadas */
+#include "magia_inicial.h"  /* sorteio + render da escolha de magia */
 
 #include <stdlib.h>   /* srand, rand, strtoul */
 #include <stdio.h>    /* snprintf */
@@ -68,6 +69,7 @@ static void atualizar_leaderboard(EstadoJogo *ej);
 static void atualizar_historico(EstadoJogo *ej);
 static void atualizar_inserir_seed(EstadoJogo *ej);
 static void atualizar_revelacao_profecia(EstadoJogo *ej);
+static void atualizar_escolha_magia_inicial(EstadoJogo *ej);
 static void atualizar_combate(EstadoJogo *ej);
 static void atualizar_pausa(EstadoJogo *ej);
 static void atualizar_cartas_upgrade(EstadoJogo *ej);
@@ -206,8 +208,9 @@ static void jogo_atualizar(EstadoJogo *ej) {
         case ESTADO_LEADERBOARD:        atualizar_leaderboard(ej);        break;
         case ESTADO_HISTORICO:          atualizar_historico(ej);          break;
         case ESTADO_INSERIR_SEED:       atualizar_inserir_seed(ej);       break;
-        case ESTADO_REVELACAO_PROFECIA: atualizar_revelacao_profecia(ej); break;
-        case ESTADO_COMBATE:            atualizar_combate(ej);            break;
+        case ESTADO_REVELACAO_PROFECIA:    atualizar_revelacao_profecia(ej);    break;
+        case ESTADO_ESCOLHA_MAGIA_INICIAL: atualizar_escolha_magia_inicial(ej); break;
+        case ESTADO_COMBATE:               atualizar_combate(ej);               break;
         case ESTADO_PAUSA:              atualizar_pausa(ej);              break;
         case ESTADO_CARTAS_UPGRADE:     atualizar_cartas_upgrade(ej);     break;
         case ESTADO_GAME_OVER:          atualizar_game_over(ej);          break;
@@ -443,7 +446,9 @@ static void atualizar_inserir_seed(EstadoJogo *ej) {
 
 
 /* Encapsula o que rola quando o jogador confirma uma seed (Novo Jogo,
- * Carregar Jogo ou Inserir Seed). Persiste a seed pra próximo "Carregar". */
+ * Carregar Jogo, Inserir Seed ou Histórico). Persiste a seed pra próximo
+ * "Carregar". A escolha de magia inicial é zerada pra forçar passagem pela
+ * tela ESCOLHA_MAGIA_INICIAL — o jogador re-escolhe a cada run. */
 static void iniciar_run_com_seed(EstadoJogo *ej, unsigned int seed) {
     profecia_gerar(&ej->profecia, seed);
     obstaculos_gerar(ej, seed);
@@ -452,22 +457,57 @@ static void iniciar_run_com_seed(EstadoJogo *ej, unsigned int seed) {
     ej->salvamento.tem_ultima_seed = true;
     salvamento_salvar(&ej->salvamento);
 
+    ej->magia_inicial_definida  = false;
+    ej->magia_inicial_escolhida = ELEMENTO_ARCANO;
+
     ej->proximo_estado = ESTADO_REVELACAO_PROFECIA;
 }
 
 /* --- Estado: REVELACAO_PROFECIA -------------------------------------------
- * Mostra os 3 modificadores sorteados. Jogador lê e aperta ESPAÇO pra
- * começar o combate. */
+ * Mostra os 3 modificadores sorteados. Jogador lê e aperta ESPAÇO pra avançar
+ * pra escolha da magia inicial (GDD: "Você lê a Profecia antes de escolher
+ * sua magia inicial"). */
 static void atualizar_revelacao_profecia(EstadoJogo *ej) {
-    if (IsKeyPressed(KEY_SPACE)) {
-        /* Reseta o estado da run ANTES de iniciar a timeline. Em retries
-         * (game over → menu → nova run), sem isso o jogador continuaria com
-         * vida 0 e a lista de inimigos da run anterior — disparando game
-         * over no primeiro frame de combate. */
+    if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER)) {
+        /* Sorteia 3 opções de magia (com garantia de sinergia) e troca pra
+         * tela de escolha. O reset da run só acontece DEPOIS, quando o jogador
+         * confirma a magia escolhida — pra preservar profecia, mapa e save. */
+        magia_inicial_sortear_opcoes(ej);
+        ej->proximo_estado = ESTADO_ESCOLHA_MAGIA_INICIAL;
+    }
+}
+
+
+/* --- Estado: ESCOLHA_MAGIA_INICIAL ---------------------------------------
+ * 3 cards lado a lado. LEFT/RIGHT move o cursor (ou teclas 1/2/3 saltam
+ * direto pro card correspondente); ENTER confirma a escolha, reseta a run e
+ * entra no combate. ESC volta pra revelação da profecia. */
+static void atualizar_escolha_magia_inicial(EstadoJogo *ej) {
+    if (IsKeyPressed(KEY_LEFT)  || IsKeyPressed(KEY_A)) {
+        ej->opcao_magia_selecionada = (ej->opcao_magia_selecionada + 3 - 1) % 3;
+    }
+    if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) {
+        ej->opcao_magia_selecionada = (ej->opcao_magia_selecionada + 1) % 3;
+    }
+    if (IsKeyPressed(KEY_ONE))   ej->opcao_magia_selecionada = 0;
+    if (IsKeyPressed(KEY_TWO))   ej->opcao_magia_selecionada = 1;
+    if (IsKeyPressed(KEY_THREE)) ej->opcao_magia_selecionada = 2;
+
+    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+        /* Confirma: registra a magia escolhida (vai ser usada como 4º slot do
+         * auto-fire) e segue pro combate. */
+        ej->magia_inicial_escolhida =
+            ej->opcoes_magia[ej->opcao_magia_selecionada].elemento;
+        ej->magia_inicial_definida = true;
+
         jogo_resetar_run(ej);
         cronograma_inicializar(&ej->cronograma);
-        profecia_evento_inicio_run(ej);   /* dispara COND_INICIO_RUN */
+        profecia_evento_inicio_run(ej);   /* no-op hoje, mantém pra futuro */
         ej->proximo_estado = ESTADO_COMBATE;
+    }
+
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        ej->proximo_estado = ESTADO_REVELACAO_PROFECIA;
     }
 }
 
@@ -659,8 +699,12 @@ static void jogo_desenhar(const EstadoJogo *ej) {
 
         case ESTADO_REVELACAO_PROFECIA:
             profecia_desenhar(&ej->profecia);
-            DrawText("Pressione ESPACO para comecar a onda",
-                     LARGURA_TELA/2 - 260, ALTURA_TELA - 80, 22, GRAY);
+            DrawText("Pressione ESPACO para escolher sua magia inicial",
+                     LARGURA_TELA/2 - 320, ALTURA_TELA - 80, 22, GRAY);
+            break;
+
+        case ESTADO_ESCOLHA_MAGIA_INICIAL:
+            magia_inicial_desenhar(ej, ej->opcao_magia_selecionada);
             break;
 
         case ESTADO_COMBATE:

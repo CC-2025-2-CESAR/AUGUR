@@ -72,8 +72,9 @@ typedef enum {
     ESTADO_LEADERBOARD,         /* tabelas top-10 (tempo e biomassa) */
     ESTADO_HISTORICO,           /* lista de até 10 seeds jogadas recentemente */
     ESTADO_INSERIR_SEED,        /* input de seed manual antes de uma run */
-    ESTADO_REVELACAO_PROFECIA,  /* mostra os 3 modificadores sorteados */
-    ESTADO_COMBATE,             /* timeline rolando, inimigos spawnando */
+    ESTADO_REVELACAO_PROFECIA,      /* mostra os 3 modificadores sorteados */
+    ESTADO_ESCOLHA_MAGIA_INICIAL,   /* depois da profecia: escolhe 1 de 3 magias */
+    ESTADO_COMBATE,                 /* timeline rolando, inimigos spawnando */
     ESTADO_PAUSA,               /* ESC durante o combate; mundo congelado */
     ESTADO_CARTAS_UPGRADE,      /* a cada minuto: jogador escolhe upgrade */
     ESTADO_GAME_OVER,           /* morreu, mostra score e seed */
@@ -489,6 +490,20 @@ typedef struct {
 } DadosSalvos;
 
 
+/* -------------------- OPCAO DE MAGIA INICIAL (TELA DE ESCOLHA) --------------------
+ * Após a revelação da profecia, o jogador escolhe 1 de 3 magias sorteadas.
+ * A magia escolhida vira o 4º elemento do auto-fire (round-robin se soma aos
+ * 3 elementos dos mods da profecia). Pelo menos 1 das 3 opções sorteadas tem
+ * elemento sinergético — bate com algum mod da profecia.
+ * ---------------------------------------------------------------- */
+typedef struct {
+    Elemento  elemento;             /* qual elemento essa opção representa */
+    int       raridade;             /* 0..5, igual à curva das cartas de upgrade */
+    bool      sinergetica;          /* true se elemento bate com algum mod */
+    char      nome[24];             /* "Bola de Fogo", "Lança Gelada" etc. */
+} OpcaoMagiaInicial;
+
+
 /* ============================================================================
  * ESTADO DO JOGO (STRUCT RAIZ)
  * --------------------------------------------------------------------------
@@ -537,6 +552,12 @@ typedef struct {
     /* --- Opções de upgrade mostradas no estado CARTAS_UPGRADE ---
      * MATRIZ de 3 cartas (requisito obrigatório). */
     Carta     escolhas_upgrade[CARTAS_POR_ESCOLHA];
+
+    /* --- Opções de magia inicial mostradas no estado ESCOLHA_MAGIA_INICIAL --- */
+    OpcaoMagiaInicial opcoes_magia[3];
+    int               opcao_magia_selecionada;   /* 0..2 */
+    Elemento          magia_inicial_escolhida;   /* aplicada no auto-fire (4º slot) */
+    bool              magia_inicial_definida;    /* false antes da escolha */
 
     /* --- Dados que o jogador escolheu levar nessa run --- */
     Dado      dados_ativos[MAX_DADOS_JOGADOR];
