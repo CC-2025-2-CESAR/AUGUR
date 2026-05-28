@@ -47,4 +47,10 @@ bool cronograma_deve_abrir_cartas(const Cronograma *c);
  * tela de cartas é fechada. */
 void cronograma_consumir_carta_pendente(Cronograma *c);
 
+/* Pula o tempo da run pro próximo múltiplo de 60s (próxima tela de cartas).
+ * Se já estamos no último minuto, vai direto pro 5:00 (chefão). Zera os
+ * timer_interno dos eventos pra evitar pico de spawns ao processar os
+ * segundos pulados. Ligada à tecla F3 em main.c::atualizar_combate. */
+void cronograma_pular_proxima_carta(Cronograma *c);
+
 #endif /* CRONOGRAMA_H */

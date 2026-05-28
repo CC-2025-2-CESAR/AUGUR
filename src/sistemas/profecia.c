@@ -10,6 +10,11 @@
  *   - "static const" nas tabelas: "static" = visível só nesse arquivo;
  *     "const" = somente leitura. Protege contra modificação acidental.
  *
+ * SIMPLIFICAÇÃO (v3): pool encolheu pra 6 elementos × 4 condições × 6 efeitos
+ * (~3 milhões de profecias) e o texto de revelação agora mostra magnitude
+ * explícita ("Explosao de Fogo (40 dano, raio 150)") pra cada modificador.
+ * O motor só dispara as 4 condições novas — todos os ramos antigos saíram.
+ *
  * ATENÇÃO: as strings das tabelas abaixo VÃO PARA O DrawText() em
  * profecia_desenhar. Como a fonte default do Raylib é ASCII puro, as
  * strings ficam SEM acentos ("Relampago", "Explosao") — se acentuar aqui,
@@ -31,8 +36,6 @@
  * MATRIZES (arrays) de strings. Cada índice corresponde ao valor do enum.
  * Ordem tem que bater com a ordem dos enums em tipos.h.
  *
- * Exemplo: nomes_elementos[ELEMENTO_FOGO] = "Fogo"
- *
  * Strings sem acento de propósito (vão pra DrawText, fonte ASCII).
  * ========================================================================== */
 
@@ -48,29 +51,17 @@ static const char *nomes_elementos[ELEMENTO_TOTAL] = {
 static const char *nomes_condicoes[COND_TOTAL] = {
     "Ao matar",
     "Ao tomar dano",
-    "A cada 10s",
-    "Em combo",
-    "Ao rolar dado",
-    "Ao curar",
-    "Na primeira hit",
-    "Vida abaixo do limite",
     "Ao acertar",
-    "Inicio da run"
+    "A cada 10s"
 };
 
 static const char *nomes_efeitos[EF_TOTAL] = {
-    "Explosao em area",
-    "Cura o jogador",
-    "Duplica projetil",
-    "Congela alvo",
-    "Dropa dado",
-    "+2 no proximo roll",
-    "Dano triplo",
-    "Spawna aliado fraco",
-    "Reduz cooldown",
-    "Ignite passivo",
+    "Explosao",
+    "Cura",
     "Escudo",
-    "Roubo de vida"
+    "Ignite",
+    "Congelar",
+    "Duplica projetil"
 };
 
 
@@ -121,37 +112,90 @@ const char *efeito_nome(Efeito e) {
 
 
 /* ============================================================================
+ * TEXTO DE MAGNITUDE
+ * --------------------------------------------------------------------------
+ * Cada efeito tem um número específico (dano, raio, duração) que vive em
+ * profecia_efeitos.c. Esta função monta uma string curta que descreve QUANTO
+ * o efeito faz, pra colocar embaixo do texto da condição na tela de revelação.
+ *
+ * Resultado é puro ASCII (DrawText): "(40 dano, raio 150)".
+ * ========================================================================== */
+static void texto_magnitude(Efeito ef, char *buf, int tam) {
+    const MagnitudesEfeito *M = &MAGNITUDES_EFEITO;
+    switch (ef) {
+        case EF_EXPLOSAO:
+            snprintf(buf, tam, "(%d dano, raio %d)",
+                     (int)M->explosao_dano, (int)M->explosao_raio);
+            break;
+        case EF_CURA:
+            snprintf(buf, tam, "(+%d HP)", M->cura_hp);
+            break;
+        case EF_ESCUDO:
+            snprintf(buf, tam, "(anula o proximo hit recebido)");
+            break;
+        case EF_IGNITE:
+            snprintf(buf, tam, "(%d dano/s por %ds, raio %d)",
+                     (int)M->ignite_dps, (int)M->ignite_tempo,
+                     (int)M->ignite_raio);
+            break;
+        case EF_CONGELAR:
+            snprintf(buf, tam, "(stun %ds, raio %d)",
+                     (int)M->congelar_tempo, (int)M->congelar_raio);
+            break;
+        case EF_DUPLICA_PROJETIL:
+            snprintf(buf, tam, "(%d proximos disparos duplicam)",
+                     M->duplica_qtd);
+            break;
+        default:
+            buf[0] = '\0';
+            break;
+    }
+}
+
+
+/* ============================================================================
  * DESENHO
  * --------------------------------------------------------------------------
- * Mostra a profecia formatada na tela. Cada modificador em uma linha,
- * dourado pra dar destaque.
+ * Mostra a profecia formatada na tela. Cada modificador em 2 linhas: a
+ * primeira em DOURADO descreve "QUANDO + EFEITO de ELEMENTO", a segunda em
+ * cinza mostra a magnitude explícita. Resultado é um puzzle legível, com o
+ * jogador sabendo exatamente o que cada mod faz antes da run começar.
  *
  * snprintf é uma versão "segura" do sprintf: nunca escreve além do tamanho
  * do buffer, evitando buffer overflow.
  * ========================================================================== */
 void profecia_desenhar(const Profecia *p) {
-    DrawText("PROFECIA", LARGURA_TELA / 2 - 130, 80, 56, GOLD);
+    DrawText("PROFECIA", LARGURA_TELA / 2 - 130, 60, 56, GOLD);
 
     /* Mostra seed pequena abaixo do título, pra identificar a run */
     char buffer_seed[64];
     snprintf(buffer_seed, sizeof(buffer_seed), "Seed: %u", p->seed);
-    DrawText(buffer_seed, LARGURA_TELA / 2 - 60, 160, 18, GRAY);
+    DrawText(buffer_seed, LARGURA_TELA / 2 - 60, 140, 18, GRAY);
 
-    /* Desenha os 3 modificadores. Cada um numerado com I, II, III
-     * pra dar um toque "misterioso". */
+    /* Desenha os 3 modificadores. Cada um numerado com I, II, III. */
     const char *numerais[3] = { "I", "II", "III" };
 
     for (int i = 0; i < 3; i++) {
-        char buffer[256];
-        snprintf(buffer, sizeof(buffer), "%s.  %s  |  %s  ->  %s",
-                 numerais[i],
-                 elemento_nome(p->mods[i].elemento),
-                 condicao_nome(p->mods[i].condicao),
-                 efeito_nome(p->mods[i].efeito));
+        const Modificador *m = &p->mods[i];
+        int y_principal  = 200 + i * 100;
+        int y_magnitude  = y_principal + 32;
 
-        /* Espaçamento vertical: cada linha 60 pixels abaixo da anterior. */
-        int y = 240 + i * 70;
-        DrawText(buffer, 150, y, 26, WHITE);
+        /* Linha principal: "I. AO MATAR um inimigo: Explosao de Fogo" */
+        char principal[192];
+        snprintf(principal, sizeof(principal),
+                 "%s.  %s:  %s de %s",
+                 numerais[i],
+                 condicao_nome(m->condicao),
+                 efeito_nome(m->efeito),
+                 elemento_nome(m->elemento));
+        DrawText(principal, 130, y_principal, 24, WHITE);
+
+        /* Linha de magnitude: "(40 dano, raio 150)" */
+        char magnitude[96];
+        texto_magnitude(m->efeito, magnitude, sizeof(magnitude));
+        if (magnitude[0] != '\0') {
+            DrawText(magnitude, 170, y_magnitude, 18, LIGHTGRAY);
+        }
     }
 }
 
@@ -161,6 +205,10 @@ void profecia_desenhar(const Profecia *p) {
  * --------------------------------------------------------------------------
  * Avalia as Condições dos 3 mods e aplica os Efeitos. Toda magnitude vem de
  * MAGNITUDES_EFEITO / LIMIARES_CONDICAO (profecia_efeitos.c — Luísa tuna).
+ *
+ * Simplificação (v3): só 4 condições ativas. Removidos os ramos de
+ * VIDA_ABAIXO_X, EM_COMBO, AO_CURAR, PRIMEIRA_HIT, AO_ROLAR_DADO,
+ * INICIO_RUN — junto com os estados temporários associados.
  * ========================================================================== */
 
 /* Distância ao quadrado entre dois pontos (evita sqrt em checagem de raio). */
@@ -217,41 +265,19 @@ void profecia_aplicar_efeito(EstadoJogo *ej, Efeito ef, Vector2 ctx) {
         case EF_CURA:
             profecia_curar_jogador(ej, M->cura_hp);
             break;
-        case EF_DUPLICA_PROJETIL:
-            mp->duplica_proximos += M->duplica_qtd;
-            break;
-        case EF_CONGELA:
-            status_em_area(ej, ctx, M->congela_raio,
-                           true, M->congela_tempo, false, 0.0f, 0.0f);
-            break;
-        case EF_DROPA_DADO:
-            mp->pending_dado_drop += M->dado_drop_qtd;   /* gancho Sofia */
-            break;
-        case EF_MAIS2_PROX_ROLL:
-            mp->pending_bonus_roll += M->bonus_roll_qtd;  /* gancho Sofia */
-            break;
-        case EF_DANO_TRIPLO:
-            mp->dano_triplo_proxima = M->dano_triplo_mult;
-            break;
-        case EF_SPAWNA_ALIADO: {
-            Vector2 p = { ej->jogador.posicao.x + 40.0f,
-                          ej->jogador.posicao.y };
-            inimigos_spawnar_aliado(ej, p, M->aliado_vida_frac,
-                                    M->aliado_duracao);
-            break;
-        }
-        case EF_REDUZ_COOLDOWN:
-            mp->reduz_cooldown_tempo = M->reduz_cooldown_tempo;
-            break;
-        case EF_IGNITE_PASSIVO:
-            status_em_area(ej, ctx, M->ignite_raio,
-                           false, 0.0f, true, M->ignite_tempo, M->ignite_dps);
-            break;
         case EF_ESCUDO:
             mp->escudo_ativo = 1.0f;   /* anula o próximo hit */
             break;
-        case EF_ROUBO_DE_VIDA:
-            mp->roubo_vida_tempo = M->roubo_vida_tempo;
+        case EF_IGNITE:
+            status_em_area(ej, ctx, M->ignite_raio,
+                           false, 0.0f, true, M->ignite_tempo, M->ignite_dps);
+            break;
+        case EF_CONGELAR:
+            status_em_area(ej, ctx, M->congelar_raio,
+                           true, M->congelar_tempo, false, 0.0f, 0.0f);
+            break;
+        case EF_DUPLICA_PROJETIL:
+            mp->duplica_proximos += M->duplica_qtd;
             break;
         case EF_TOTAL:
         default:
@@ -282,26 +308,17 @@ void profecia_curar_jogador(EstadoJogo *ej, int qtd) {
 }
 
 
+/* Mantida pra compatibilidade com call-sites do main.c — agora é no-op porque
+ * COND_INICIO_RUN saiu do pool. Não removo a função pra manter a interface
+ * estável (o main chama explicitamente ao iniciar a run). */
 void profecia_evento_inicio_run(EstadoJogo *ej) {
-    if (ej->motor_profecia.inicio_run_disparado) return;
-    ej->motor_profecia.inicio_run_disparado = true;
-    disparar_condicao(ej, COND_INICIO_RUN, ej->jogador.posicao);
+    (void)ej;
 }
 
 
 void profecia_evento_ao_matar(EstadoJogo *ej, Inimigo *morto) {
     Vector2 ctx = (morto != NULL) ? morto->posicao : ej->jogador.posicao;
-    MotorProfecia *mp = &ej->motor_profecia;
-
-    mp->combo_contador++;
-    mp->combo_janela_restante = LIMIARES_CONDICAO.combo_janela_seg;
-
     disparar_condicao(ej, COND_AO_MATAR, ctx);
-
-    if (mp->combo_contador >= LIMIARES_CONDICAO.combo_limiar) {
-        mp->combo_contador = 0;
-        disparar_condicao(ej, COND_EM_COMBO, ctx);
-    }
 }
 
 
@@ -311,23 +328,20 @@ void profecia_evento_ao_receber_dano(EstadoJogo *ej) {
 
 
 void profecia_evento_ao_acertar(EstadoJogo *ej, Vector2 ctx) {
-    if (!ej->motor_profecia.primeira_hit_consumida) {
-        ej->motor_profecia.primeira_hit_consumida = true;
-        disparar_condicao(ej, COND_PRIMEIRA_HIT, ctx);
-    }
     disparar_condicao(ej, COND_AO_ACERTAR, ctx);
 }
 
 
+/* Mantida pra compatibilidade — COND_AO_CURAR saiu do pool. */
 void profecia_evento_ao_curar(EstadoJogo *ej) {
-    disparar_condicao(ej, COND_AO_CURAR, ej->jogador.posicao);
+    (void)ej;
 }
 
 
-/* Gancho pro sistema de dados (Sofia): hoje sem call-site. Quando o roll
- * existir, chamar isto após cada rolagem. */
+/* Gancho pro sistema de dados (Sofia): COND_AO_ROLAR_DADO saiu do pool, então
+ * essa função virou no-op. Mantida pra não quebrar call-sites futuros. */
 void profecia_evento_ao_rolar_dado(EstadoJogo *ej) {
-    disparar_condicao(ej, COND_AO_ROLAR_DADO, ej->jogador.posicao);
+    (void)ej;
 }
 
 
@@ -335,51 +349,18 @@ void profecia_motor_atualizar(EstadoJogo *ej) {
     float dt = ej->delta_tempo;
     MotorProfecia *mp = &ej->motor_profecia;
 
-    /* Decaimento dos buffs temporários. */
-    if (mp->roubo_vida_tempo > 0.0f) {
-        mp->roubo_vida_tempo -= dt;
-        if (mp->roubo_vida_tempo < 0.0f) mp->roubo_vida_tempo = 0.0f;
-    }
-    if (mp->reduz_cooldown_tempo > 0.0f) {
-        mp->reduz_cooldown_tempo -= dt;
-        if (mp->reduz_cooldown_tempo < 0.0f) mp->reduz_cooldown_tempo = 0.0f;
-    }
-
-    /* Janela de combo: sem kill por combo_janela_seg, zera o contador. */
-    if (mp->combo_janela_restante > 0.0f) {
-        mp->combo_janela_restante -= dt;
-        if (mp->combo_janela_restante <= 0.0f) {
-            mp->combo_janela_restante = 0.0f;
-            mp->combo_contador = 0;
-        }
-    }
-
-    float vida_frac = (ej->jogador.vida_maxima > 0)
-        ? (float)ej->jogador.vida / (float)ej->jogador.vida_maxima
-        : 1.0f;
-
+    /* Só sobrou COND_A_CADA_N_SEG no motor — todas as outras 3 condições do
+     * pool são edge-triggered por eventos externos (ao_matar, ao_receber_dano,
+     * ao_acertar), não precisam tick por frame. */
     for (int m = 0; m < 3; m++) {
         Condicao c = ej->profecia.mods[m].condicao;
+        if (c != COND_A_CADA_N_SEG) continue;
 
-        if (c == COND_A_CADA_10S) {
-            mp->timer_cond[m] += dt;
-            if (mp->timer_cond[m] >= LIMIARES_CONDICAO.a_cada_10s_seg) {
-                mp->timer_cond[m] -= LIMIARES_CONDICAO.a_cada_10s_seg;
-                profecia_aplicar_efeito(ej, ej->profecia.mods[m].efeito,
-                                        ej->jogador.posicao);
-            }
-        } else if (c == COND_VIDA_ABAIXO_X) {
-            /* Edge-triggered: dispara só na borda de entrada, re-arma ao
-             * recuperar acima do limiar (não spamma todo frame). */
-            if (vida_frac < LIMIARES_CONDICAO.vida_abaixo_frac) {
-                if (!mp->cond_vida_armada[m]) {
-                    mp->cond_vida_armada[m] = true;
-                    profecia_aplicar_efeito(ej, ej->profecia.mods[m].efeito,
-                                            ej->jogador.posicao);
-                }
-            } else {
-                mp->cond_vida_armada[m] = false;
-            }
+        mp->timer_cond[m] += dt;
+        if (mp->timer_cond[m] >= LIMIARES_CONDICAO.a_cada_n_seg) {
+            mp->timer_cond[m] -= LIMIARES_CONDICAO.a_cada_n_seg;
+            profecia_aplicar_efeito(ej, ej->profecia.mods[m].efeito,
+                                    ej->jogador.posicao);
         }
     }
 }

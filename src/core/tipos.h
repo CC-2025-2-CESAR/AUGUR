@@ -35,9 +35,18 @@
  * Qualquer "número mágico" que vários arquivos usam vira #define aqui.
  * Assim muda em um lugar só.
  * ========================================================================== */
-#define LARGURA_TELA      1280
-#define ALTURA_TELA       720
+#define LARGURA_TELA      1280   /* resolução default; pode ser sobrescrita pelo save */
+#define ALTURA_TELA       720    /* resolução default; pode ser sobrescrita pelo save */
 #define FPS_ALVO          60
+
+/* Versão atual do formato do save. Se o save no disco trouxer outro valor,
+ * salvamento_carregar zera tudo (evita lixo binário ao expandir DadosSalvos).
+ * BUMP v2 -> v3: enums Condicao/Efeito encolheram. Saves antigos viram lixo
+ * binário e são zerados automaticamente. */
+#define SAVE_VERSAO_ATUAL 3
+
+#define LEADERBOARD_TAM   10    /* top-10 nas duas tabelas (tempo + biomassa) */
+#define SEED_MAX_DIGITOS  10    /* unsigned int 32-bit cabe em 10 dígitos decimais */
 
 #define MAX_PROJETEIS     256   /* teto de segurança pra lista de magias */
 #define MAX_PROJETEIS_INIMIGO 256 /* teto da lista de projéteis de inimigo */
@@ -58,6 +67,9 @@
  * Main.c tem um switch que decide o que rodar baseado nesse valor. */
 typedef enum {
     ESTADO_MENU,                /* tela inicial */
+    ESTADO_OPCOES,              /* config de vídeo: resolução, fullscreen */
+    ESTADO_LEADERBOARD,         /* tabelas top-10 (tempo e biomassa) */
+    ESTADO_INSERIR_SEED,        /* input de seed manual antes de uma run */
     ESTADO_REVELACAO_PROFECIA,  /* mostra os 3 modificadores sorteados */
     ESTADO_COMBATE,             /* timeline rolando, inimigos spawnando */
     ESTADO_PAUSA,               /* ESC durante o combate; mundo congelado */
@@ -97,35 +109,29 @@ typedef enum {
 } TipoInimigo;
 
 /* Gatilhos das profecias. "Quando X acontece, dispare o efeito".
- * Dev 3 precisa checar essas condições no loop de combate. */
+ * Engine de combate checa essas condições no loop. Pool reduzido a 4 pra
+ * que cada profecia seja um puzzle legível — antes eram 10 condições com
+ * estados/timers/debounces independentes que tornavam o efeito combinado
+ * imprevisível. */
 typedef enum {
     COND_AO_MATAR,          /* inimigo morreu */
     COND_AO_RECEBER_DANO,   /* jogador tomou hit */
-    COND_A_CADA_10S,        /* timer interno por mod: dispara a cada 10s */
-    COND_EM_COMBO,          /* contador de combo atingiu o limiar */
-    COND_AO_ROLAR_DADO,     /* jogador rolou dado (gancho Sofia/dados) */
-    COND_AO_CURAR,          /* jogador foi curado */
-    COND_PRIMEIRA_HIT,      /* a 1ª magia que acerta na run */
-    COND_VIDA_ABAIXO_X,     /* HP do jogador < X% (X tunável pela Luísa) */
-    COND_AO_ACERTAR,        /* extra renomeável: toda magia que acerta */
-    COND_INICIO_RUN,        /* extra renomeável: uma vez no começo da run */
+    COND_AO_ACERTAR,        /* toda magia que acerta um inimigo */
+    COND_A_CADA_N_SEG,      /* timer interno por mod: dispara a cada N segundos */
     COND_TOTAL
 } Condicao;
 
-/* Efeitos que podem ser disparados pelas profecias. */
+/* Efeitos que podem ser disparados pelas profecias. Pool reduzido a 6 pra
+ * cortar combos crípticos (DanoTriplo+SpawnaAliado+ReduzCooldown era confuso)
+ * e os ganchos que dependiam do sistema de dados. Cada efeito agora tem
+ * magnitude clara mostrada no texto da profecia. */
 typedef enum {
     EF_EXPLOSAO,            /* dano em área no contexto */
     EF_CURA,                /* recupera HP do jogador */
-    EF_DUPLICA_PROJETIL,    /* próximos disparos saem duplicados */
-    EF_CONGELA,             /* congela inimigos */
-    EF_DROPA_DADO,          /* gancho Sofia/dados — no-op seguro por ora */
-    EF_MAIS2_PROX_ROLL,     /* gancho Sofia/dados — no-op seguro por ora */
-    EF_DANO_TRIPLO,         /* próxima hit do jogador triplica */
-    EF_SPAWNA_ALIADO,       /* spawna inimigo fraco aliado temporário */
-    EF_REDUZ_COOLDOWN,      /* reduz cooldown de disparo por um tempo */
-    EF_IGNITE_PASSIVO,      /* aplica DoT (ignite) no alvo */
-    EF_ESCUDO,              /* extra renomeável: anula o próximo hit no jogador */
-    EF_ROUBO_DE_VIDA,       /* extra renomeável: lifesteal por um tempo */
+    EF_ESCUDO,              /* anula o próximo hit no jogador */
+    EF_IGNITE,              /* aplica DoT (ignite) no alvo */
+    EF_CONGELAR,            /* congela inimigos no contexto */
+    EF_DUPLICA_PROJETIL,    /* próximos N disparos saem duplicados */
     EF_TOTAL
 } Efeito;
 
@@ -415,16 +421,50 @@ typedef struct {
 } Dado;
 
 
+/* -------------------- ENTRADA DE LEADERBOARD --------------------
+ * Uma linha do top-10. Há duas tabelas em DadosSalvos: top_tempo (só vitórias,
+ * ordenado por tempo crescente) e top_biomassa (vitórias e derrotas, ordenado
+ * por pontuação decrescente). Slot livre = ocupado=false.
+ * ---------------------------------------------------------------- */
+typedef struct {
+    int          pontuacao;         /* biomassa coletada na run */
+    float        tempo_segundos;    /* duração da run; só tem sentido se venceu=true */
+    unsigned int seed;              /* seed da profecia, pra replay */
+    bool         venceu;            /* true se chegou ao chefão e derrotou */
+    bool         ocupado;           /* false = slot vazio */
+} EntradaLeaderboard;
+
+
 /* -------------------- DADOS SALVOS (DEV 2) --------------------
- * Persistem entre runs. Dev 2 salva/carrega de saves/biomassa.dat
- * usando fwrite/fread (REQUISITO OBRIGATÓRIO de PIF: arquivo).
+ * Persistem entre runs. Sofia escreve via fwrite em saves/biomassa.dat
+ * (REQUISITO OBRIGATÓRIO de PIF: arquivo). Layout serializado é literalmente
+ * o memory layout da struct — qualquer campo novo entra de graça no save.
+ *
+ * VERSÃO: se o save no disco trouxer outro versao_save, salvamento_carregar
+ * zera tudo. Garante que upgrades da struct não corrompam runs antigas.
  * ------------------------------------------------------------- */
 typedef struct {
+    int  versao_save;               /* SAVE_VERSAO_ATUAL; gate de compatibilidade */
+
+    /* --- progressão (campos originais da Sofia) --- */
     int  biomassa_total;            /* moeda acumulada em todas as runs */
     int  runs_completadas;
     int  melhor_onda;               /* maior onda alcançada até hoje */
     int  profecias_desbloqueadas[20]; /* MATRIZ — requisito obrigatório */
     char nome_jogador[32];
+
+    /* --- config de vídeo --- */
+    int  largura_tela;              /* 0 = usar LARGURA_TELA default */
+    int  altura_tela;
+    bool fullscreen;
+
+    /* --- "Carregar Jogo" (replay da última seed) --- */
+    unsigned int ultima_seed;
+    bool         tem_ultima_seed;
+
+    /* --- leaderboards --- */
+    EntradaLeaderboard top_tempo[LEADERBOARD_TAM];     /* só vitórias; tempo crescente */
+    EntradaLeaderboard top_biomassa[LEADERBOARD_TAM];  /* vit. e derrotas; pontuação decrescente */
 } DadosSalvos;
 
 

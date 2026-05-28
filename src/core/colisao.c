@@ -65,10 +65,10 @@ bool colisao_circulo_caixa(Vector2 c, float r, Rectangle caixa) {
 
 
 /* ----- DANO A INIMIGO (caminho único) -----
- * Consome multiplicadores de "próxima hit" (combo Choque Térmico) e o
- * "dano triplo" da profecia, depois subtrai vida. Se zerou, mata pelo
- * caminho único (inimigos_registrar_morte) pra biomassa contar sempre.
- * Lifesteal (roubo_vida) é plugado aqui na Fase 6. */
+ * Consome o multiplicador de "próxima hit" do combo Choque Térmico e o
+ * "dano triplo" residual no motor (EF_DANO_TRIPLO saiu do pool, mas o campo
+ * permanece pra eventual reintrodução via carta), depois subtrai vida. Se
+ * zerou, mata pelo caminho único pra biomassa contar sempre. */
 static void aplicar_dano_inimigo(EstadoJogo *ej, Inimigo *i, float dano) {
     float mult = 1.0f;
 
@@ -83,12 +83,6 @@ static void aplicar_dano_inimigo(EstadoJogo *ej, Inimigo *i, float dano) {
 
     float dano_final = dano * mult;
     i->vida -= (int)dano_final;
-
-    /* Lifesteal (EF_ROUBO_DE_VIDA): cura fração do dano enquanto ativo. */
-    if (ej->motor_profecia.roubo_vida_tempo > 0.0f) {
-        int cura = (int)(dano_final * MAGNITUDES_EFEITO.roubo_vida_frac);
-        profecia_curar_jogador(ej, cura);
-    }
 
     if (i->vida <= 0) {
         inimigos_registrar_morte(ej, i);
