@@ -42,6 +42,7 @@
 #include "hud.h"
 #include "config_video.h"   /* aplica resolução e fullscreen do save */
 #include "leaderboard.h"    /* top-10 de runs */
+#include "historico.h"      /* últimas 10 seeds jogadas */
 
 #include <stdlib.h>   /* srand, rand, strtoul */
 #include <stdio.h>    /* snprintf */
@@ -64,6 +65,7 @@ static void desenhar_grid_mundo(const Camera2D *camera);
 static void atualizar_menu(EstadoJogo *ej);
 static void atualizar_opcoes(EstadoJogo *ej);
 static void atualizar_leaderboard(EstadoJogo *ej);
+static void atualizar_historico(EstadoJogo *ej);
 static void atualizar_inserir_seed(EstadoJogo *ej);
 static void atualizar_revelacao_profecia(EstadoJogo *ej);
 static void atualizar_combate(EstadoJogo *ej);
@@ -99,6 +101,7 @@ static void jogo_resetar_run(EstadoJogo *ej);
 static int  s_menu_item                 = 0;     /* cursor do menu principal */
 static int  s_opcoes_item               = 0;     /* cursor da tela de opções */
 static bool s_leaderboard_aba_biomassa  = false; /* false=tempo, true=biomassa */
+static int  s_historico_cursor          = 0;     /* cursor da tela de histórico */
 static char s_seed_buffer[SEED_MAX_DIGITOS + 1] = {0}; /* buffer de input de seed */
 static int  s_seed_buffer_len           = 0;
 
@@ -201,6 +204,7 @@ static void jogo_atualizar(EstadoJogo *ej) {
         case ESTADO_MENU:               atualizar_menu(ej);               break;
         case ESTADO_OPCOES:             atualizar_opcoes(ej);             break;
         case ESTADO_LEADERBOARD:        atualizar_leaderboard(ej);        break;
+        case ESTADO_HISTORICO:          atualizar_historico(ej);          break;
         case ESTADO_INSERIR_SEED:       atualizar_inserir_seed(ej);       break;
         case ESTADO_REVELACAO_PROFECIA: atualizar_revelacao_profecia(ej); break;
         case ESTADO_COMBATE:            atualizar_combate(ej);            break;
@@ -229,6 +233,7 @@ typedef enum {
     MENU_NOVO_JOGO,
     MENU_CARREGAR,
     MENU_INSERIR_SEED,
+    MENU_HISTORICO,
     MENU_LEADERBOARD,
     MENU_OPCOES,
     MENU_SAIR,
@@ -239,18 +244,22 @@ static const char *MENU_LABEL[MENU_TOTAL_ITENS] = {
     "Novo Jogo",
     "Carregar Jogo",
     "Inserir Seed",
+    "Historico",
     "Leaderboard",
     "Opcoes",
     "Sair",
 };
 
-/* Constrói a lista de itens visíveis no menu atual. Filtra "Carregar Jogo" se
- * não há save de seed. Retorna a quantidade de itens visíveis e preenche
- * `mapa[]` com os índices originais (ItemMenu) na ordem em que aparecem. */
+/* Constrói a lista de itens visíveis no menu atual. Filtra:
+ *   - "Carregar Jogo" se não há save de seed (1 clique pra última seed)
+ *   - "Histórico"     se o histórico está vazio
+ * Retorna a quantidade de itens visíveis e preenche `mapa[]` com os índices
+ * originais (ItemMenu) na ordem em que aparecem. */
 static int montar_menu_visivel(const EstadoJogo *ej, ItemMenu mapa[MENU_TOTAL_ITENS]) {
     int n = 0;
     for (int i = 0; i < MENU_TOTAL_ITENS; i++) {
-        if (i == MENU_CARREGAR && !ej->salvamento.tem_ultima_seed) continue;
+        if (i == MENU_CARREGAR  && !ej->salvamento.tem_ultima_seed) continue;
+        if (i == MENU_HISTORICO && !historico_tem_entradas(&ej->salvamento)) continue;
         mapa[n++] = (ItemMenu)i;
     }
     return n;
@@ -294,6 +303,10 @@ static void atualizar_menu(EstadoJogo *ej) {
                 s_seed_buffer_len = 0;
                 s_seed_buffer[0]  = '\0';
                 ej->proximo_estado = ESTADO_INSERIR_SEED;
+                break;
+            case MENU_HISTORICO:
+                s_historico_cursor = 0;
+                ej->proximo_estado = ESTADO_HISTORICO;
                 break;
             case MENU_LEADERBOARD:
                 ej->proximo_estado = ESTADO_LEADERBOARD;
@@ -358,6 +371,39 @@ static void atualizar_leaderboard(EstadoJogo *ej) {
         s_leaderboard_aba_biomassa = !s_leaderboard_aba_biomassa;
     }
     if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER)) {
+        ej->proximo_estado = ESTADO_MENU;
+    }
+}
+
+
+/* --- Estado: HISTORICO ----------------------------------------------------
+ * Lista cronológica das últimas seeds (mais recente em [0]). UP/DOWN move o
+ * cursor; ENTER recarrega a seed selecionada (vai pra revelação da profecia);
+ * ESC volta pro menu. */
+static void atualizar_historico(EstadoJogo *ej) {
+    int n = ej->salvamento.historico_qtd;
+    if (n > HISTORICO_SEEDS_TAM) n = HISTORICO_SEEDS_TAM;
+
+    if (n > 0) {
+        /* Mantém cursor dentro do range mesmo após mudança de tamanho. */
+        if (s_historico_cursor >= n) s_historico_cursor = n - 1;
+        if (s_historico_cursor < 0)  s_historico_cursor = 0;
+
+        if (IsKeyPressed(KEY_UP)   || IsKeyPressed(KEY_W)) {
+            s_historico_cursor = (s_historico_cursor - 1 + n) % n;
+        }
+        if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) {
+            s_historico_cursor = (s_historico_cursor + 1) % n;
+        }
+
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+            unsigned int seed = ej->salvamento.historico[s_historico_cursor].seed;
+            iniciar_run_com_seed(ej, seed);
+            return;
+        }
+    }
+
+    if (IsKeyPressed(KEY_ESCAPE)) {
         ej->proximo_estado = ESTADO_MENU;
     }
 }
@@ -476,21 +522,32 @@ static void atualizar_combate(EstadoJogo *ej) {
 
     if (ej->jogador.vida <= 0) {
         /* Registra a derrota no leaderboard de biomassa antes de transitar.
-         * top_tempo ignora (filtra por venceu=true internamente). */
+         * top_tempo ignora (filtra por venceu=true internamente). Também
+         * empurra a entrada pro histórico (índice 0 = mais recente). */
         leaderboard_registrar(&ej->salvamento,
                               ej->jogador.biomassa,
                               ej->cronograma.tempo_decorrido,
                               ej->profecia.seed,
                               false);
+        historico_registrar(&ej->salvamento,
+                            ej->profecia.seed,
+                            false,
+                            ej->cronograma.tempo_decorrido,
+                            ej->jogador.biomassa);
         salvamento_salvar(&ej->salvamento);
         ej->proximo_estado = ESTADO_GAME_OVER;
     } else if (ej->cronograma.vitoria) {
-        /* Registra a vitória nas duas tabelas. */
+        /* Registra a vitória nas duas tabelas + histórico. */
         leaderboard_registrar(&ej->salvamento,
                               ej->jogador.biomassa,
                               ej->cronograma.tempo_decorrido,
                               ej->profecia.seed,
                               true);
+        historico_registrar(&ej->salvamento,
+                            ej->profecia.seed,
+                            true,
+                            ej->cronograma.tempo_decorrido,
+                            ej->jogador.biomassa);
         salvamento_salvar(&ej->salvamento);
         ej->proximo_estado = ESTADO_VITORIA;
     } else if (cronograma_deve_abrir_cartas(&ej->cronograma)) {
@@ -590,6 +647,10 @@ static void jogo_desenhar(const EstadoJogo *ej) {
 
         case ESTADO_LEADERBOARD:
             leaderboard_desenhar(&ej->salvamento, s_leaderboard_aba_biomassa);
+            break;
+
+        case ESTADO_HISTORICO:
+            historico_desenhar(&ej->salvamento, s_historico_cursor);
             break;
 
         case ESTADO_INSERIR_SEED:
