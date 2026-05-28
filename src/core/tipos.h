@@ -40,8 +40,10 @@
 #define FPS_ALVO          60
 
 /* Versão atual do formato do save. Se o save no disco trouxer outro valor,
- * salvamento_carregar zera tudo (evita lixo binário ao expandir DadosSalvos). */
-#define SAVE_VERSAO_ATUAL 2
+ * salvamento_carregar zera tudo (evita lixo binário ao expandir DadosSalvos).
+ * BUMP v2 -> v3: enums Condicao/Efeito encolheram. Saves antigos viram lixo
+ * binário e são zerados automaticamente. */
+#define SAVE_VERSAO_ATUAL 3
 
 #define LEADERBOARD_TAM   10    /* top-10 nas duas tabelas (tempo + biomassa) */
 #define SEED_MAX_DIGITOS  10    /* unsigned int 32-bit cabe em 10 dígitos decimais */
@@ -107,35 +109,29 @@ typedef enum {
 } TipoInimigo;
 
 /* Gatilhos das profecias. "Quando X acontece, dispare o efeito".
- * Dev 3 precisa checar essas condições no loop de combate. */
+ * Engine de combate checa essas condições no loop. Pool reduzido a 4 pra
+ * que cada profecia seja um puzzle legível — antes eram 10 condições com
+ * estados/timers/debounces independentes que tornavam o efeito combinado
+ * imprevisível. */
 typedef enum {
     COND_AO_MATAR,          /* inimigo morreu */
     COND_AO_RECEBER_DANO,   /* jogador tomou hit */
-    COND_A_CADA_10S,        /* timer interno por mod: dispara a cada 10s */
-    COND_EM_COMBO,          /* contador de combo atingiu o limiar */
-    COND_AO_ROLAR_DADO,     /* jogador rolou dado (gancho Sofia/dados) */
-    COND_AO_CURAR,          /* jogador foi curado */
-    COND_PRIMEIRA_HIT,      /* a 1ª magia que acerta na run */
-    COND_VIDA_ABAIXO_X,     /* HP do jogador < X% (X tunável pela Luísa) */
-    COND_AO_ACERTAR,        /* extra renomeável: toda magia que acerta */
-    COND_INICIO_RUN,        /* extra renomeável: uma vez no começo da run */
+    COND_AO_ACERTAR,        /* toda magia que acerta um inimigo */
+    COND_A_CADA_N_SEG,      /* timer interno por mod: dispara a cada N segundos */
     COND_TOTAL
 } Condicao;
 
-/* Efeitos que podem ser disparados pelas profecias. */
+/* Efeitos que podem ser disparados pelas profecias. Pool reduzido a 6 pra
+ * cortar combos crípticos (DanoTriplo+SpawnaAliado+ReduzCooldown era confuso)
+ * e os ganchos que dependiam do sistema de dados. Cada efeito agora tem
+ * magnitude clara mostrada no texto da profecia. */
 typedef enum {
     EF_EXPLOSAO,            /* dano em área no contexto */
     EF_CURA,                /* recupera HP do jogador */
-    EF_DUPLICA_PROJETIL,    /* próximos disparos saem duplicados */
-    EF_CONGELA,             /* congela inimigos */
-    EF_DROPA_DADO,          /* gancho Sofia/dados — no-op seguro por ora */
-    EF_MAIS2_PROX_ROLL,     /* gancho Sofia/dados — no-op seguro por ora */
-    EF_DANO_TRIPLO,         /* próxima hit do jogador triplica */
-    EF_SPAWNA_ALIADO,       /* spawna inimigo fraco aliado temporário */
-    EF_REDUZ_COOLDOWN,      /* reduz cooldown de disparo por um tempo */
-    EF_IGNITE_PASSIVO,      /* aplica DoT (ignite) no alvo */
-    EF_ESCUDO,              /* extra renomeável: anula o próximo hit no jogador */
-    EF_ROUBO_DE_VIDA,       /* extra renomeável: lifesteal por um tempo */
+    EF_ESCUDO,              /* anula o próximo hit no jogador */
+    EF_IGNITE,              /* aplica DoT (ignite) no alvo */
+    EF_CONGELAR,            /* congela inimigos no contexto */
+    EF_DUPLICA_PROJETIL,    /* próximos N disparos saem duplicados */
     EF_TOTAL
 } Efeito;
 
