@@ -10,14 +10,15 @@ Cada run tem uma **seed** visível na tela. Como a profecia é gerada de forma d
 
 ### Sistemas implementados
 
-- **Profecia ativa em combate.** 6 Elementos × 10 Condições × 12 Efeitos (conforme o GDD). O motor avalia as 3 condições durante a run e dispara os efeitos; magnitudes e limiares são 100% tunáveis em `profecia_efeitos.c`.
+- **Profecia ativa em combate.** 6 Elementos × 4 Condições × 6 Efeitos — pool enxuto pra cada profecia virar puzzle legível, com magnitude exibida no texto (ex.: "Explosao de Fogo 40 dano, raio 150"). O motor avalia as 3 condições durante a run e dispara os efeitos; magnitudes e limiares são 100% tunáveis em `profecia_efeitos.c`.
 - **Poderes por elemento.** Cada magia tem um comportamento de status: Gelo congela, Relâmpago salta entre inimigos próximos, Veneno aplica DoT acumulativo, Fogo/Arcano/Sombra são projéteis puros. Tudo tunável em `magias_comportamento.c`.
 - **Combos emergentes.** Fogo → Gelo = **Choque Térmico** (stun + próxima hit amplificada); Arcano em inimigo envenenado = dano dobrado.
 - **Inimigos atiram.** Ranged e chefão disparam um projétil padrão (não-elemental), tunável por tipo em `projeteis_inimigo_tipos.c`.
 - **Pontuação.** A biomassa coletada vira a pontuação final mostrada no game over / vitória.
 - **Menu inicial completo.** Novo Jogo, Carregar Jogo (replay da última seed), Inserir Seed manual, Leaderboard, Opções e Sair. Navegação com setas + ENTER.
 - **Leaderboard top-10.** Duas tabelas: por tempo (só vitórias, mais rápido primeiro) e por biomassa (vitórias e derrotas, maior pontuação primeiro). Persiste entre execuções; TAB alterna abas.
-- **Opções de vídeo.** 3 resoluções (1280×720, 1600×900, 1920×1080) e toggle de fullscreen. As preferências persistem no save.
+- **Opções de vídeo.** 3 resoluções (1280×720, 1600×900, 1920×1080) e toggle de fullscreen. As preferências persistem no save. A janela também pode ser arrastada ou maximizada — letterbox via `RenderTexture2D` escala o conteúdo uniformemente sem cropar nem distorcer.
+- **Renderização com sprites + tileset.** Sprite sheets direcionais (4 direções × idle/walk/cast + hurt + death) pro jogador (augur) e 4 inimigos (carniçal/vidente/arauto/oráculo), magias estáticas rotacionadas pela velocidade do projétil, e chão como tilemap de templo com hash determinístico (mesmo tile sempre na mesma posição). Fallback automático pra primitivas Raylib se um PNG não estiver presente — não derruba o jogo.
 - **Seed manual.** Tela "Inserir Seed" aceita um número decimal e abre uma run determinística — basta compartilhar a seed pra um amigo jogar a mesma profecia.
 - **Skip de evento (F3).** Durante o combate, F3 pula pro próximo minuto cheio (próxima tela de cartas). Útil pra testar builds rápido. Se já estiver no último minuto, vai direto pro chefão.
 
@@ -38,7 +39,7 @@ Tudo em [`docs/`](docs/) — veja o [índice](docs/README.md) pra navegação r�
 | Guia | Quando usar |
 |---|---|
 | [TUTORIAL_AMBIENTE.md](docs/TUTORIAL_AMBIENTE.md) | Setup do ambiente (MSYS2/Linux), instalação do Raylib e make. Leitura obrigatória no primeiro clone. |
-| [TUTORIAL_SPRITES.md](docs/TUTORIAL_SPRITES.md) | Como adicionar sprites PNG no lugar das primitivas (`DrawCircleV`). Inclui o módulo `assets` sugerido e exemplos completos. |
+| [TUTORIAL_SPRITES.md](docs/TUTORIAL_SPRITES.md) | Guia das sprite sheets em 2 partes — Parte 1 (entrega da Luísa: naming, layout direcional de 14 rows, tileset com pesos, checklist) + Parte 2 (integração já feita no engine: módulo `assets`, `MetaSheet` direcional, `desenhar_sheet`, animação de hurt/cast/death, tileset com hash determinístico, letterbox via `RenderTexture2D`). |
 | [dicionario.md](docs/dicionario.md) | Glossário de termos de jogos (AoE, DoT, kiting…) e da arquitetura do AUGUR (motor de profecia, riders, push-out…). |
 
 ## Requisitos
@@ -91,9 +92,10 @@ O código é organizado em módulos por responsabilidade. Cada subpasta de `src/
 Jogo-PIF/
 |-- src/
 |   |-- core/                          <- motor: loop, contrato (tipos.h), colisão
-|   |   |-- main.c                     <- game loop e máquina de estados
+|   |   |-- main.c                     <- game loop, máquina de estados, letterbox
 |   |   |-- tipos.h                    <- contrato entre devs (todas as structs)
-|   |   `-- colisao.c/.h               <- colisão + dano único, riders e combos
+|   |   |-- colisao.c/.h               <- colisão + dano único, riders e combos
+|   |   `-- assets.c/.h                <- carga e desenho de sprite sheets (Arthur + Luísa)
 |   |
 |   |-- entidades/                     <- coisas que vivem no mundo
 |   |   |-- jogador.c/.h               <- movimento, HP e direção
@@ -122,6 +124,11 @@ Jogo-PIF/
 |       `-- hud.c/.h                   <- HUD durante combate (Sofia)
 |
 |-- assets/                            <- sprites, sons e fontes
+|   `-- sprites/                       <- sheets direcionais + tileset (Luísa)
+|       |-- personagem/                <- augur_sheet.png + augur.json
+|       |-- inimigos/                  <- {carnical,vidente,arauto,oraculo}_sheet.png
+|       |-- magias/                    <- magia_{fogo,gelo,relampago,veneno,arcano,sombra}.png
+|       `-- background/                <- tileset.png + tile_*.png + tiles.json
 |-- build/                             <- arquivos .o gerados pelo make
 |-- saves/                             <- progresso gerado em runtime
 |-- docs/                              <- guias internos pro grupo
@@ -268,6 +275,13 @@ MENU ┬─ Novo Jogo ─────────► REVELACAO ─► COMBATE �
 | TAB | (Leaderboard) alterna entre Tempo e Biomassa |
 | BACKSPACE | (Inserir Seed) apagar último dígito |
 | ESC | Voltar pra tela anterior |
+
+### Janela
+| Ação | Como |
+|------|------|
+| Redimensionar | Arrasta a borda ou maximiza — conteúdo escala junto, sem cropar (letterbox preserva aspect ratio) |
+| Resolução fixa | Menu → Opções → escolhe 720p/900p/1080p |
+| Fullscreen | Menu → Opções → toggle |
 
 ### Durante o combate
 | Tecla | Ação |
