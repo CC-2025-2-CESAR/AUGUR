@@ -67,21 +67,38 @@ Hurt e death **não têm versão por direção** — usam a linha única, omnidi
 
 **Tamanhos por entidade** (já mapeados no engine):
 
-| Entidade        | `frame_w × frame_h` |
-|-----------------|---------------------|
-| Jogador (augur) | 32 × 32             |
-| Carniçal        | 32 × 32             |
-| Vidente Falso   | 32 × 32             |
-| Arauto (elite)  | 40 × 40             |
-| Oráculo (chefe) | 64 × 64             |
+| Entidade        | `frame_w × frame_h` atual | Recomendado (2×) | Sheet completa (8 cols × 14 rows) |
+|-----------------|---------------------------|------------------|------------------------------------|
+| Jogador (augur) | 32 × 32                   | **64 × 64**      | 512 × 896                          |
+| Carniçal        | 32 × 32                   | **64 × 64**      | 512 × 896                          |
+| Vidente Falso   | 32 × 32                   | **64 × 64**      | 512 × 896                          |
+| Arauto (elite)  | 40 × 40                   | **80 × 80**      | 640 × 1120                         |
+| Oráculo (chefe) | 64 × 64                   | **128 × 128**    | 1024 × 1792                        |
+
+> Por que 2×? Escala inteira mantém pixel art crisp. O engine tem
+> `SPRITE_VISUAL_SCALE = 2.0f` (`src/core/assets.h`) que faz o sprite ocupar
+> 2× o diâmetro da hitbox na tela — assim o detalhe extra do PNG aparece
+> visível, não só "embutido". Se mudar pra 3×, ajustar o define junto.
 
 ### 1.4 Sprites de magia (estáticos)
 
-Magias usam **1 frame único** (não animado): só um PNG de 16×16 ou 24×24 com a "ponta" do projétil apontando pra **direita** (+X). O engine rotaciona em runtime com `atan2(velocidade)`, então o sprite só precisa estar orientado pra direita; ele gira naturalmente conforme a magia voa.
+Magias usam **1 frame único** (não animado): um PNG por elemento com a "ponta" do projétil apontando pra **direita** (+X). O engine rotaciona em runtime com `atan2(velocidade)`, então o sprite só precisa estar orientado pra direita; ele gira naturalmente conforme a magia voa.
+
+| Atual            | Recomendado |
+|------------------|-------------|
+| 16×16 ou 24×24   | **32 × 32** |
+
+O lado do projétil renderizado é `mg->raio * 2 * SPRITE_VISUAL_SCALE`, então com fator 2× um projétil de raio 8 vira 32px na tela — coerente com o sprite PNG.
 
 ### 1.5 Tileset do chão
 
-`tileset.png` é um atlas horizontal: N tiles de 32×32 lado a lado em uma única linha. Todos os tiles compartilham a mesma borda de "rejunte" pra que qualquer combinação encaixe sem emenda visível.
+`tileset.png` é um atlas horizontal: N tiles **quadrados de mesmo lado** lado a lado em uma única linha. Todos os tiles compartilham a mesma borda de "rejunte" pra que qualquer combinação encaixe sem emenda visível.
+
+| Atual         | Recomendado |
+|---------------|-------------|
+| 32 × 32 por tile, sheet 320×32 (10 tiles) | **64 × 64 por tile, sheet 640×64** |
+
+O engine usa `TILE_LADO = tileset.height` automaticamente — basta entregar tiles maiores que o chão fica maior no mundo, sem mexer no código. Mantenha 10 tiles na ordem atual pra os pesos do `tiles.json` continuarem batendo.
 
 Tiles atuais (`tile_*.png` individuais + `tileset.png` atlas):
 
@@ -213,7 +230,7 @@ desenhar_sheet(tex, &META_JOGADOR, j->posicao,
                j->animacao_tempo, escala, WHITE);
 ```
 
-A escala é calculada pra que o sprite ocupe diâmetro igual a `2 * raio` — mantém leitura visual coerente com a hitbox circular.
+A escala usa `(raio * 2 * SPRITE_VISUAL_SCALE) / frame_w`. O `SPRITE_VISUAL_SCALE` (em `assets.h`, atualmente 2.0) **desacopla o tamanho visual da hitbox**: o sprite ocupa 2× o diâmetro do círculo de colisão, mas a hitbox em si segue o `raio` original. Aumentar o define faz tudo ficar maior na tela sem mudar gameplay.
 
 ### 2.6 Atualização de direção + animação
 

@@ -35,6 +35,16 @@
  * QTD_PARAMETROS_INIMIGO da tabela da Luísa que é `extern const int`. */
 #define ASSETS_NUM_INIMIGOS 4
 
+/* Fator visual aplicado em cima da escala "natural" (= 2*raio / frame_w).
+ * Desacopla tamanho do sprite na tela do raio de hitbox: aumentar este
+ * número faz o sprite aparecer maior SEM mudar colisão/balance.
+ *
+ * 1.0 = sprite ocupa exatamente o diâmetro da hitbox (visual = hitbox).
+ * 2.0 = sprite com o dobro do diâmetro da hitbox (mais "presente" na tela).
+ *
+ * Usado por jogador_desenhar, inimigos_desenhar e magias_desenhar. */
+#define SPRITE_VISUAL_SCALE 2.0f
+
 /* Texturas globais carregadas uma vez em jogo_inicializar e liberadas em
  * jogo_finalizar. Acesso direto: `g_assets.jogador`, `g_assets.inimigos[tipo]`.
  *

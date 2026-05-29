@@ -245,9 +245,11 @@ void magias_desenhar(const EstadoJogo *ej) {
 
         /* Sprite estático (frame único nos PNGs de magia) rotacionado pra
          * apontar na direção do voo. atan2 dá o ângulo da velocidade em rad;
-         * RAD2DEG converte porque DrawTexturePro usa graus. */
+         * RAD2DEG converte porque DrawTexturePro usa graus.
+         * SPRITE_VISUAL_SCALE (assets.h) deixa o projétil maior visualmente
+         * sem aumentar o raio de colisão. */
         float angulo_deg = atan2f(mg->velocidade.y, mg->velocidade.x) * RAD2DEG;
-        float lado = mg->raio * 2.0f;
+        float lado = mg->raio * 2.0f * SPRITE_VISUAL_SCALE;
         Rectangle src = { 0, 0, (float)tex.width, (float)tex.height };
         Rectangle dst = { mg->posicao.x, mg->posicao.y, lado, lado };
         /* origem = (lado/2, lado/2) → rotaciona em volta do centro do projétil. */

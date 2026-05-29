@@ -160,7 +160,10 @@ void jogador_desenhar(const Jogador *j) {
         return;
     }
 
-    float escala = (j->raio * 2.0f) / (float)META_JOGADOR.frame_w;
+    /* SPRITE_VISUAL_SCALE (assets.h) deixa o sprite maior na tela sem mexer
+     * na hitbox (raio fica intocado). */
+    float escala = (j->raio * 2.0f * SPRITE_VISUAL_SCALE) /
+                   (float)META_JOGADOR.frame_w;
     desenhar_sheet(tex, &META_JOGADOR, j->posicao,
                    j->direcao_atual, j->animacao_atual,
                    j->animacao_tempo, escala, WHITE);

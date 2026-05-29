@@ -316,10 +316,12 @@ void inimigos_desenhar(const EstadoJogo *ej) {
             continue;
         }
 
-        /* Sprite: escala pra que o frame ocupe ~raio*2 de diâmetro em mundo.
+        /* Sprite: escala pra que o frame ocupe ~raio*2*SPRITE_VISUAL_SCALE de
+         * diâmetro em mundo (assets.h). Desacopla visual de hitbox.
          * Aliado leva tint esverdeado discreto pra sinalizar "do meu lado".
          * Morrendo: tint não muda — a animação DEATH já comunica. */
-        float escala = (i->raio * 2.0f) / (float)META_INIMIGO[i->tipo].frame_w;
+        float escala = (i->raio * 2.0f * SPRITE_VISUAL_SCALE) /
+                       (float)META_INIMIGO[i->tipo].frame_w;
         Color tint = WHITE;
         if (i->aliado) tint = (Color){ 180, 255, 180, 255 };
 
