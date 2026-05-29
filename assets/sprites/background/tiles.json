@@ -1,88 +1,89 @@
 {
-  "tile_size": 32,
+  "tile_size": 64,
   "seamless": true,
-  "note": "Todos os tiles dividem a mesma borda de rejunte; qualquer combina\u00e7\u00e3o encaixa.",
+  "biome": "grama",
+  "note": "Tiles compativeis nas bordas: base de grama com mesma distribuicao estatistica.",
   "weights_sugeridos": {
-    "plain": 30,
-    "plain2": 30,
-    "crack": 8,
-    "moss": 8,
-    "rubble": 6,
-    "tiles_quad": 6,
-    "rune_cyan": 4,
-    "gold_mosaic": 3,
-    "bird_glyph": 3,
-    "fissure_glow": 2
+    "plain": 35,
+    "plain2": 22,
+    "patch_grass": 8,
+    "clover": 7,
+    "flowers_y": 7,
+    "flowers_w": 6,
+    "flowers_b": 5,
+    "small_rock": 4,
+    "dirt_patch": 4,
+    "rune_glow": 2
   },
   "tiles": {
     "plain": {
       "index": 0,
       "size": [
-        32,
-        32
+        64,
+        64
       ]
     },
     "plain2": {
       "index": 1,
       "size": [
-        32,
-        32
+        64,
+        64
       ]
     },
-    "crack": {
+    "patch_grass": {
       "index": 2,
       "size": [
-        32,
-        32
+        64,
+        64
       ]
     },
-    "rune_cyan": {
+    "flowers_y": {
       "index": 3,
       "size": [
-        32,
-        32
+        64,
+        64
       ]
     },
-    "gold_mosaic": {
+    "flowers_w": {
       "index": 4,
       "size": [
-        32,
-        32
+        64,
+        64
       ]
     },
-    "bird_glyph": {
+    "flowers_b": {
       "index": 5,
       "size": [
-        32,
-        32
+        64,
+        64
       ]
     },
-    "moss": {
+    "small_rock": {
       "index": 6,
       "size": [
-        32,
-        32
+        64,
+        64
       ]
     },
-    "rubble": {
+    "dirt_patch": {
       "index": 7,
       "size": [
-        32,
-        32
+        64,
+        64
       ]
     },
-    "fissure_glow": {
+    "clover": {
       "index": 8,
       "size": [
-        32,
-        32
+        64,
+        64
       ]
     },
-    "tiles_quad": {
+    "rune_glow": {
       "index": 9,
       "size": [
-        32,
-        32
+        64,
+        64
       ]
     }
   }

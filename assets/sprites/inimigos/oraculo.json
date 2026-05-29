@@ -1,86 +1,36 @@
 {
-  "name": "Or\u00e1culo Esquecido",
-  "description": "Chef\u00e3o final. O mestre do AUGUR, corrompido pelo terceiro olho.",
-  "frame_w": 64,
-  "frame_h": 64,
-  "cols": 8,
+  "frame_size": [
+    128,
+    128
+  ],
+  "rows": {
+    "idle_down": 0,
+    "idle_up": 1,
+    "idle_left": 2,
+    "idle_right": 3,
+    "walk_down": 4,
+    "walk_up": 5,
+    "walk_left": 6,
+    "walk_right": 7,
+    "cast_down": 8,
+    "cast_up": 9,
+    "cast_left": 10,
+    "cast_right": 11,
+    "hurt": 12,
+    "death": 13
+  },
+  "frames": {
+    "idle": 6,
+    "walk": 8,
+    "cast": 6,
+    "hurt": 4,
+    "death": 8
+  },
   "fps": {
     "idle": 5,
     "walk": 8,
-    "attack": 9,
+    "cast": 9,
     "hurt": 12,
     "death": 6
-  },
-  "animations": {
-    "idle_down": {
-      "row": 0,
-      "frames": 6,
-      "y": 0
-    },
-    "idle_up": {
-      "row": 1,
-      "frames": 6,
-      "y": 64
-    },
-    "idle_left": {
-      "row": 2,
-      "frames": 6,
-      "y": 128
-    },
-    "idle_right": {
-      "row": 3,
-      "frames": 6,
-      "y": 192
-    },
-    "walk_down": {
-      "row": 4,
-      "frames": 8,
-      "y": 256
-    },
-    "walk_up": {
-      "row": 5,
-      "frames": 8,
-      "y": 320
-    },
-    "walk_left": {
-      "row": 6,
-      "frames": 8,
-      "y": 384
-    },
-    "walk_right": {
-      "row": 7,
-      "frames": 8,
-      "y": 448
-    },
-    "attack_down": {
-      "row": 8,
-      "frames": 6,
-      "y": 512
-    },
-    "attack_up": {
-      "row": 9,
-      "frames": 6,
-      "y": 576
-    },
-    "attack_left": {
-      "row": 10,
-      "frames": 6,
-      "y": 640
-    },
-    "attack_right": {
-      "row": 11,
-      "frames": 6,
-      "y": 704
-    },
-    "hurt": {
-      "row": 12,
-      "frames": 4,
-      "y": 768
-    },
-    "death": {
-      "row": 13,
-      "frames": 8,
-      "y": 832
-    }
   }
 }

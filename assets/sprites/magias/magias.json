@@ -1,134 +1,58 @@
 {
-  "fogo": {
-    "frame_size": [
-      24,
-      24
-    ],
-    "fps": {
-      "projectile": 12,
-      "impact": 16
+  "size": [
+    32,
+    32
+  ],
+  "frames": 1,
+  "orientation": "+X (engine rotaciona)",
+  "elementos": {
+    "fogo": {
+      "size": [
+        32,
+        32
+      ],
+      "frames": 1,
+      "orientation": "right"
     },
-    "animations": {
-      "fogo_projectile": {
-        "row": 0,
-        "frames": 6,
-        "y": 0
-      },
-      "fogo_impact": {
-        "row": 1,
-        "frames": 8,
-        "y": 24
-      }
-    }
-  },
-  "gelo": {
-    "frame_size": [
-      24,
-      24
-    ],
-    "fps": {
-      "projectile": 12,
-      "impact": 16
+    "gelo": {
+      "size": [
+        32,
+        32
+      ],
+      "frames": 1,
+      "orientation": "right"
     },
-    "animations": {
-      "gelo_projectile": {
-        "row": 0,
-        "frames": 6,
-        "y": 0
-      },
-      "gelo_impact": {
-        "row": 1,
-        "frames": 8,
-        "y": 24
-      }
-    }
-  },
-  "relampago": {
-    "frame_size": [
-      24,
-      24
-    ],
-    "fps": {
-      "projectile": 12,
-      "impact": 16
+    "relampago": {
+      "size": [
+        32,
+        32
+      ],
+      "frames": 1,
+      "orientation": "right"
     },
-    "animations": {
-      "relampago_projectile": {
-        "row": 0,
-        "frames": 6,
-        "y": 0
-      },
-      "relampago_impact": {
-        "row": 1,
-        "frames": 8,
-        "y": 24
-      }
-    }
-  },
-  "veneno": {
-    "frame_size": [
-      24,
-      24
-    ],
-    "fps": {
-      "projectile": 12,
-      "impact": 16
+    "veneno": {
+      "size": [
+        32,
+        32
+      ],
+      "frames": 1,
+      "orientation": "right"
     },
-    "animations": {
-      "veneno_projectile": {
-        "row": 0,
-        "frames": 6,
-        "y": 0
-      },
-      "veneno_impact": {
-        "row": 1,
-        "frames": 8,
-        "y": 24
-      }
-    }
-  },
-  "arcano": {
-    "frame_size": [
-      24,
-      24
-    ],
-    "fps": {
-      "projectile": 12,
-      "impact": 16
+    "arcano": {
+      "size": [
+        32,
+        32
+      ],
+      "frames": 1,
+      "orientation": "right"
     },
-    "animations": {
-      "arcano_projectile": {
-        "row": 0,
-        "frames": 6,
-        "y": 0
-      },
-      "arcano_impact": {
-        "row": 1,
-        "frames": 8,
-        "y": 24
-      }
-    }
-  },
-  "sombra": {
-    "frame_size": [
-      24,
-      24
-    ],
-    "fps": {
-      "projectile": 12,
-      "impact": 16
-    },
-    "animations": {
-      "sombra_projectile": {
-        "row": 0,
-        "frames": 6,
-        "y": 0
-      },
-      "sombra_impact": {
-        "row": 1,
-        "frames": 8,
-        "y": 24
-      }
+    "sombra": {
+      "size": [
+        32,
+        32
+      ],
+      "frames": 1,
+      "orientation": "right"
     }
   }
 }
