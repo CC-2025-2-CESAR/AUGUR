@@ -26,6 +26,7 @@
 #include "projeteis_inimigo.h"
 #include "projeteis_inimigo_tipos.h"
 #include "profecia.h"
+#include "assets.h"   /* g_assets, META_INIMIGO, desenhar_sheet */
 #include <math.h>
 #include <stdlib.h>
 
@@ -72,6 +73,12 @@ void inimigos_spawnar_em(EstadoJogo *ej, Vector2 posicao, TipoInimigo tipo) {
     novo->dados.vida_aliado_restante      = 0.0f;
     novo->dados.timer_disparo             = 0.0f;
 
+    /* Visual: direção/animação default (sheet da Luísa). */
+    novo->dados.direcao_atual    = DIR_DOWN;
+    novo->dados.animacao_atual   = ANIM_IDLE;
+    novo->dados.animacao_tempo   = 0.0f;
+    novo->dados.morrendo_tempo   = 0.0f;
+
     novo->proximo            = ej->inimigos_cabeca;
     ej->inimigos_cabeca      = novo;
 }
@@ -84,6 +91,13 @@ void inimigos_spawnar_em(EstadoJogo *ej, Vector2 posicao, TipoInimigo tipo) {
 void inimigos_registrar_morte(EstadoJogo *ej, Inimigo *i) {
     if (i == NULL || !i->vivo) return;
     i->vivo = false;
+    /* Anim DEATH rola por morrendo_tempo segundos antes do PASS 3 dar free.
+     * Velocidade zerada pra ele não escorregar enquanto a animação roda. */
+    i->morrendo_tempo  = 0.6f;
+    i->animacao_atual  = ANIM_DEATH;
+    i->animacao_tempo  = 0.0f;
+    i->velocidade      = (Vector2){ 0.0f, 0.0f };
+
     ej->jogador.biomassa += i->recompensa_biomassa;
     /* Caminho único de morte alimenta o motor de profecia (combo, Ao matar).
      * O guard de reentrância em profecia_aplicar_efeito impede recursão se
@@ -167,6 +181,27 @@ void inimigos_atualizar(EstadoJogo *ej) {
 
         d->posicao.x += d->velocidade.x * dt;
         d->posicao.y += d->velocidade.y * dt;
+
+        /* Direção do sprite olha pro jogador (eixo dominante). Aliado
+         * (spawnado por profecia) também olha pro jogador — ele acompanha. */
+        float dxp = ej->jogador.posicao.x - d->posicao.x;
+        float dyp = ej->jogador.posicao.y - d->posicao.y;
+        if (fabsf(dxp) > fabsf(dyp))
+            d->direcao_atual = (dxp < 0.0f) ? DIR_LEFT : DIR_RIGHT;
+        else
+            d->direcao_atual = (dyp < 0.0f) ? DIR_UP   : DIR_DOWN;
+
+        /* Animação: walk se está se movendo, idle se parado.
+         * animacao_tempo reseta na transição pra que cada anim mostre do frame 0. */
+        float vel2 = d->velocidade.x * d->velocidade.x +
+                     d->velocidade.y * d->velocidade.y;
+        int nova_anim = (vel2 > 1.0f) ? ANIM_WALK : ANIM_IDLE;
+        if (nova_anim != d->animacao_atual) {
+            d->animacao_atual = nova_anim;
+            d->animacao_tempo = 0.0f;
+        } else {
+            d->animacao_tempo += dt;
+        }
     }
 
     /* ----- PASS 1.5: disparo de projétil -----
@@ -227,16 +262,28 @@ void inimigos_atualizar(EstadoJogo *ej) {
         }
     }
 
-    /* ----- PASS 3: remoção dos mortos (ponteiro duplo) -----
+    /* ----- PASS 3: animação de morte + remoção -----
      * `**atual` aponta pro próximo ponteiro a ser modificado: ou a cabeça
      * da lista, ou o campo `proximo` do nó anterior. Permite remover nós
-     * sem if especial pra cabeça. */
+     * sem if especial pra cabeça.
+     *
+     * Inimigos com `morrendo_tempo > 0` ficam na lista enquanto a animação
+     * DEATH roda — só são removidos depois que o timer zera. Isso mantém
+     * `contar_nos` respeitando MAX_INIMIGOS durante a "fila de morte",
+     * evitando spawn descontrolado em hordas grandes. */
     InimigoNo **atual = &ej->inimigos_cabeca;
     while (*atual != NULL) {
-        if (!(*atual)->dados.vivo) {
-            InimigoNo *morto = *atual;
-            *atual = morto->proximo;
-            free(morto);
+        Inimigo *d = &(*atual)->dados;
+        if (!d->vivo) {
+            if (d->morrendo_tempo > 0.0f) {
+                d->morrendo_tempo -= dt;
+                d->animacao_tempo += dt;   /* anim DEATH continua rolando */
+                atual = &(*atual)->proximo;
+            } else {
+                InimigoNo *morto = *atual;
+                *atual = morto->proximo;
+                free(morto);
+            }
         } else {
             atual = &(*atual)->proximo;
         }
@@ -246,22 +293,39 @@ void inimigos_atualizar(EstadoJogo *ej) {
 
 void inimigos_desenhar(const EstadoJogo *ej) {
     for (const InimigoNo *ino = ej->inimigos_cabeca;
-        ino != NULL;
-        ino = ino->proximo) {
-        if (!ino->dados.vivo) continue;
-        if ((int)ino->dados.tipo < 0 ||
-            (int)ino->dados.tipo >= QTD_PARAMETROS_INIMIGO) continue;
+         ino != NULL;
+         ino = ino->proximo) {
+        const Inimigo *i = &ino->dados;
+        /* Pula só quem já terminou de morrer; quem está com morrendo_tempo>0
+         * continua sendo desenhado pra mostrar a animação DEATH. */
+        if (!i->vivo && i->morrendo_tempo <= 0.0f) continue;
+        if ((int)i->tipo < 0 || (int)i->tipo >= QTD_PARAMETROS_INIMIGO) continue;
 
-        const ParametrosInimigo *p = &PARAMETROS_INIMIGO[ino->dados.tipo];
-        Color cor = p->cor; //copia daa cor
-        float vida_ratio = (float)ino->dados.vida / (float)ino->dados.vida_maxima; //porcentagem de vida
-        cor.a = (unsigned char)(80 + 175 * vida_ratio); //transparencia
-        DrawCircleV(ino->dados.posicao, p->raio_visual, cor);
-        /* Outline mais escuro pra dar volume ao sprite circular. */
-        DrawCircleLines((int)ino->dados.posicao.x,
-                        (int)ino->dados.posicao.y,
-                        p->raio_visual,
-                        (Color){ 0, 0, 0, 150 });
+        Texture2D tex = g_assets.inimigos[i->tipo];
+        if (tex.id == 0) {
+            /* Fallback original: círculo com alpha por vida (sinaliza HP). */
+            const ParametrosInimigo *p = &PARAMETROS_INIMIGO[i->tipo];
+            Color cor = p->cor;
+            float vida_ratio = (i->vida_maxima > 0)
+                ? (float)i->vida / (float)i->vida_maxima : 1.0f;
+            if (vida_ratio < 0.0f) vida_ratio = 0.0f;
+            cor.a = (unsigned char)(80 + 175 * vida_ratio);
+            DrawCircleV(i->posicao, p->raio_visual, cor);
+            DrawCircleLines((int)i->posicao.x, (int)i->posicao.y,
+                            p->raio_visual, (Color){ 0, 0, 0, 150 });
+            continue;
+        }
+
+        /* Sprite: escala pra que o frame ocupe ~raio*2 de diâmetro em mundo.
+         * Aliado leva tint esverdeado discreto pra sinalizar "do meu lado".
+         * Morrendo: tint não muda — a animação DEATH já comunica. */
+        float escala = (i->raio * 2.0f) / (float)META_INIMIGO[i->tipo].frame_w;
+        Color tint = WHITE;
+        if (i->aliado) tint = (Color){ 180, 255, 180, 255 };
+
+        desenhar_sheet(tex, &META_INIMIGO[i->tipo], i->posicao,
+                       i->direcao_atual, i->animacao_atual,
+                       i->animacao_tempo, escala, tint);
     }
 }
 

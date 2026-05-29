@@ -22,6 +22,7 @@
 
 #include "raylib.h"
 #include "tipos.h"
+#include "assets.h"   /* g_assets, assets_carregar/liberar, desenhar_sheet */
 
 /* Módulos implementados pelo Dev 1 (Arthur) */
 #include "jogador.h"
@@ -59,7 +60,7 @@ static void jogo_atualizar(EstadoJogo *ej);
 static void jogo_desenhar(const EstadoJogo *ej);
 static void jogo_finalizar(EstadoJogo *ej);
 
-static void desenhar_grid_mundo(const Camera2D *camera);
+static void desenhar_chao_mundo(const Camera2D *camera);
 
 static void atualizar_menu(EstadoJogo *ej);
 static void atualizar_opcoes(EstadoJogo *ej);
@@ -107,7 +108,13 @@ static int  s_seed_buffer_len           = 0;
  * MAIN — PONTO DE ENTRADA
  * ========================================================================== */
 int main(void) {
-    /* 1. Inicialização do Raylib (abre a janela, prepara contexto gráfico) */
+    /* 1. Inicialização do Raylib (abre a janela, prepara contexto gráfico).
+     *
+     * FLAG_WINDOW_RESIZABLE: usuário pode arrastar a borda da janela ou
+     * maximizar. Combinado com o letterbox via RenderTexture2D (criado em
+     * jogo_inicializar), o conteúdo do jogo escala uniformemente mantendo
+     * aspect ratio — adiciona barras pretas em vez de cropar/distorcer. */
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(LARGURA_TELA, ALTURA_TELA, "AUGUR - Projeto PIF CESAR");
     SetTargetFPS(FPS_ALVO);
 
@@ -132,10 +139,36 @@ int main(void) {
     while (!WindowShouldClose() && ej.estado_atual != ESTADO_SAIR) {
         jogo_atualizar(&ej);
 
-        /* Bloco de desenho — tudo entre BeginDrawing e EndDrawing vai pra tela. */
-        BeginDrawing();
-            ClearBackground(BLACK);   /* limpa o frame anterior */
+        /* PASS 1 — desenha tudo num framebuffer fixo de LARGURA_TELA × ALTURA_TELA.
+         * Como o tamanho é fixo, todo o código de UI/HUD/câmera continua usando
+         * as constantes LARGURA_TELA/ALTURA_TELA sem precisar de ajuste por
+         * resolução. O letterbox real acontece no PASS 2. */
+        BeginTextureMode(ej.render_target);
+            ClearBackground(BLACK);
             jogo_desenhar(&ej);
+        EndTextureMode();
+
+        /* PASS 2 — copia o framebuffer pra janela atual, escalado de forma
+         * uniforme pra preservar aspect ratio. Letterbox = barras pretas quando
+         * a janela tem proporção diferente de 16:9 (ex: ultrawide, portrait).
+         *
+         * src.height NEGATIVO inverte Y: RenderTexture2D sai com origem na
+         * parte de baixo (convenção OpenGL); negativando, fica orientado igual
+         * ao resto do Raylib. */
+        BeginDrawing();
+            ClearBackground(BLACK);
+            int jw = GetScreenWidth();
+            int jh = GetScreenHeight();
+            float escala = fminf((float)jw / (float)LARGURA_TELA,
+                                 (float)jh / (float)ALTURA_TELA);
+            float dw = (float)LARGURA_TELA * escala;
+            float dh = (float)ALTURA_TELA  * escala;
+            float dx = ((float)jw - dw) * 0.5f;
+            float dy = ((float)jh - dh) * 0.5f;
+            Rectangle src = { 0, 0, (float)LARGURA_TELA, -(float)ALTURA_TELA };
+            Rectangle dst = { dx, dy, dw, dh };
+            DrawTexturePro(ej.render_target.texture, src, dst,
+                           (Vector2){ 0, 0 }, 0.0f, WHITE);
         EndDrawing();
     }
 
@@ -174,6 +207,16 @@ static void jogo_inicializar(EstadoJogo *ej) {
 
     ej->modo_debug   = false;
     ej->tiros_ativos = true;        /* Q desliga, Q liga */
+
+    /* Sprites e tileset da Luísa. assets_carregar precisa do contexto OpenGL,
+     * por isso vem DEPOIS de InitWindow (que rola no main, antes daqui). */
+    assets_carregar();
+
+    /* Render target fixo do letterbox: tudo renderiza aqui em LARGURA_TELA ×
+     * ALTURA_TELA e depois é escalado pra janela. POINT filter mantém o pixel
+     * art nítido mesmo em escalas não-inteiras (sem blur do bilinear default). */
+    ej->render_target = LoadRenderTexture(LARGURA_TELA, ALTURA_TELA);
+    SetTextureFilter(ej->render_target.texture, TEXTURE_FILTER_POINT);
 }
 
 
@@ -612,7 +655,7 @@ static void jogo_desenhar(const EstadoJogo *ej) {
              * desenhado (estado da última frame antes da pausa), e em cima
              * pintamos o overlay no fim deste switch. */
             BeginMode2D(ej->camera);
-                desenhar_grid_mundo(&ej->camera);
+                desenhar_chao_mundo(&ej->camera);
                 obstaculos_desenhar(ej);
                 magias_desenhar(ej);
                 inimigos_desenhar(ej);
@@ -702,6 +745,11 @@ static void jogo_finalizar(EstadoJogo *ej) {
     inimigos_liberar_tudo(ej);    /* stub — libera lista encadeada */
     projeteis_inimigo_liberar_tudo(ej);  /* libera lista encadeada */
     salvamento_salvar(&ej->salvamento);  /* stub — grava arquivo */
+
+    /* Libera o render target e as texturas das sprite sheets ANTES do
+     * CloseWindow (que destrói o contexto OpenGL). */
+    UnloadRenderTexture(ej->render_target);
+    assets_liberar();
 }
 
 
@@ -730,42 +778,87 @@ static void jogo_resetar_run(EstadoJogo *ej) {
 
 
 /* ============================================================================
- * GRID DE REFERÊNCIA DO MUNDO
+ * CHÃO DO MUNDO (TILESET + FALLBACK DE GRID)
  * --------------------------------------------------------------------------
- * Desenha linhas finas em intervalos fixos, mas SÓ NA ÁREA VISÍVEL da câmera.
- * Isso dá sensação de "mundo infinito" (as linhas aparecem rolando conforme o
- * jogador anda) sem precisar renderizar milhões de linhas — só as que cabem
- * na tela a cada frame.
+ * Tile-set da Luísa (10 tiles 32×32 seamless do templo). Pra cada célula
+ * visível, hash determinístico (x,y) escolhe qual tile vai ali — mesmo tile
+ * SEMPRE na mesma posição de mundo (não pisca a cada frame). Os pesos
+ * priorizam `plain`/`plain2` (60+20 = 80%) e usam os tiles "raros" (runa,
+ * mosaico, glifo, fissura) só ocasionalmente, replicando os pesos sugeridos
+ * em assets/sprites/background/tiles.json.
+ *
+ * Se o tileset não carregou (PNG faltando), fallback pro grid antigo de
+ * linhas — garante que o jogo continua funcional mesmo sem assets.
  *
  * Como deve ser chamada dentro de BeginMode2D, usamos coord de mundo: a área
  * visível em mundo vai de (target - tela/2/zoom) até (target + tela/2/zoom).
  * ========================================================================== */
-static void desenhar_grid_mundo(const Camera2D *camera) {
-    const float ESPACAMENTO = 128.0f;     /* distância entre linhas, em pixels de mundo */
-    const Color COR_GRID    = (Color){ 30, 30, 45, 255 };  /* azul bem escuro, discreto */
+static void desenhar_chao_mundo(const Camera2D *camera) {
+    Texture2D tex = g_assets.tileset;
 
     /* Limites visíveis em coord de mundo. zoom divide porque zoom 2 mostra
      * metade do mundo, zoom 0.5 mostra o dobro. */
     float meia_largura = (LARGURA_TELA / 2.0f) / camera->zoom;
     float meia_altura  = (ALTURA_TELA  / 2.0f) / camera->zoom;
-
     float esquerda = camera->target.x - meia_largura;
     float direita  = camera->target.x + meia_largura;
     float topo     = camera->target.y - meia_altura;
     float baixo    = camera->target.y + meia_altura;
 
-    /* Alinha o início pra cair num múltiplo de ESPACAMENTO (efeito de grid
-     * "fixo no mundo", não colado na câmera). */
-    float primeiro_x = floorf(esquerda / ESPACAMENTO) * ESPACAMENTO;
-    float primeiro_y = floorf(topo     / ESPACAMENTO) * ESPACAMENTO;
-
-    /* Verticais */
-    for (float x = primeiro_x; x <= direita; x += ESPACAMENTO) {
-        DrawLineV((Vector2){ x, topo }, (Vector2){ x, baixo }, COR_GRID);
+    if (tex.id == 0) {
+        /* Fallback: grid de linhas (comportamento original do projeto). */
+        const float ESPACAMENTO = 128.0f;
+        const Color COR_GRID    = (Color){ 30, 30, 45, 255 };
+        float primeiro_x = floorf(esquerda / ESPACAMENTO) * ESPACAMENTO;
+        float primeiro_y = floorf(topo     / ESPACAMENTO) * ESPACAMENTO;
+        for (float x = primeiro_x; x <= direita; x += ESPACAMENTO)
+            DrawLineV((Vector2){ x, topo }, (Vector2){ x, baixo }, COR_GRID);
+        for (float y = primeiro_y; y <= baixo; y += ESPACAMENTO)
+            DrawLineV((Vector2){ esquerda, y }, (Vector2){ direita, y }, COR_GRID);
+        return;
     }
-    /* Horizontais */
-    for (float y = primeiro_y; y <= baixo; y += ESPACAMENTO) {
-        DrawLineV((Vector2){ esquerda, y }, (Vector2){ direita, y }, COR_GRID);
+
+    /* Tileset: 1 linha × N colunas (atlas). Lado de cada tile = altura da
+     * textura (todos os tiles são quadrados de mesmo tamanho). */
+    const int TILE_LADO = tex.height;
+    if (TILE_LADO <= 0) return;
+    int n_tiles = tex.width / TILE_LADO;
+    if (n_tiles < 1) n_tiles = 1;
+
+    /* Alinha o início pra cair num múltiplo de TILE_LADO (mosaico fixo no
+     * mundo, não na câmera). Margem de 1 tile pra evitar buracos nas bordas. */
+    int ix0 = (int)(floorf(esquerda / (float)TILE_LADO)) * TILE_LADO - TILE_LADO;
+    int iy0 = (int)(floorf(topo     / (float)TILE_LADO)) * TILE_LADO - TILE_LADO;
+    int ix1 = (int)(ceilf (direita  / (float)TILE_LADO)) * TILE_LADO + TILE_LADO;
+    int iy1 = (int)(ceilf (baixo    / (float)TILE_LADO)) * TILE_LADO + TILE_LADO;
+
+    for (int y = iy0; y < iy1; y += TILE_LADO) {
+        for (int x = ix0; x < ix1; x += TILE_LADO) {
+            /* Hash determinístico (x,y) → bucket. Os multiplicadores são
+             * primos clássicos usados em hash espacial (Teschner et al.). */
+            unsigned int h = ((unsigned int)x * 73856093u) ^
+                             ((unsigned int)y * 19349663u);
+            int bucket = (int)(h % 100u);
+
+            /* Pesos copiam aproximadamente o tiles.json:
+             *   0..59  → plain      (idx 0)
+             *   60..79 → plain2     (idx 1)
+             *   80..89 → crack      (idx 2)
+             *   90..94 → moss       (idx 3)
+             *   95..99 → variável dos "raros" (4..9 conforme disponível) */
+            int idx;
+            if      (bucket < 60) idx = 0;
+            else if (bucket < 80) idx = 1 % n_tiles;
+            else if (bucket < 90) idx = 2 % n_tiles;
+            else if (bucket < 95) idx = 3 % n_tiles;
+            else                  idx = (4 + (bucket - 95)) % n_tiles;
+
+            Rectangle src = { (float)(idx * TILE_LADO), 0,
+                              (float)TILE_LADO, (float)TILE_LADO };
+            Rectangle dst = { (float)x, (float)y,
+                              (float)TILE_LADO, (float)TILE_LADO };
+            DrawTexturePro(tex, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
+        }
     }
 }
 

@@ -55,6 +55,21 @@
 #define CARTAS_POR_ESCOLHA 3    /* quantas cartas aparecem entre ondas */
 #define MAX_DADOS_JOGADOR 2     /* quantos dados o jogador leva por run */
 
+/* Animações e direções das sprite sheets (consumido pelo módulo assets).
+ * As sheets seguem layout fixo: rows 0..3 = idle_{down,up,left,right},
+ * rows 4..7 = walk_*, rows 8..11 = cast_*, row 12 = hurt (omni), row 13 =
+ * death (omni). Direção é offset somado ao row_base no desenhar_sheet. */
+#define ANIM_IDLE   0
+#define ANIM_WALK   1
+#define ANIM_CAST   2
+#define ANIM_HURT   3
+#define ANIM_DEATH  4
+
+#define DIR_DOWN    0
+#define DIR_UP      1
+#define DIR_LEFT    2
+#define DIR_RIGHT   3
+
 /* ============================================================================
  * ENUMS — "Int com nome"
  * --------------------------------------------------------------------------
@@ -176,6 +191,13 @@ typedef struct {
     float   velocidade_movimento;  /* pixels por segundo */
     int     biomassa;       /* moeda da meta-progressão */
     int     bonus_dano;     /* somado no dano-base de toda magia disparada */
+
+    /* --- Visual: direção + animação atual (módulo assets) --- */
+    int     direcao_atual;          /* DIR_DOWN/UP/LEFT/RIGHT — pra onde olha */
+    int     animacao_atual;         /* ANIM_IDLE/WALK/CAST/HURT/DEATH */
+    float   animacao_tempo;         /* s acumulados na animação atual */
+    float   hurt_tempo_restante;    /* >0: força HURT até zerar */
+    float   cast_tempo_restante;    /* >0: força CAST até zerar */
 } Jogador;
 
 
@@ -235,6 +257,12 @@ typedef struct {
     bool  aliado;                    /* spawnado por EF_SPAWNA_ALIADO: não fere o jogador */
     float vida_aliado_restante;      /* s de vida de um aliado (0 = não expira) */
     float timer_disparo;             /* cooldown do disparo de projétil deste inimigo */
+
+    /* --- Visual: direção + animação atual (módulo assets) --- */
+    int   direcao_atual;             /* DIR_DOWN/UP/LEFT/RIGHT — atualizado pra olhar pro jogador */
+    int   animacao_atual;            /* ANIM_IDLE/WALK/CAST/HURT/DEATH */
+    float animacao_tempo;            /* s acumulados na animação atual */
+    float morrendo_tempo;            /* >0: anim DEATH rolando antes do free no PASS 3 */
 } Inimigo;
 
 typedef struct InimigoNo {
@@ -530,6 +558,12 @@ typedef struct {
 
     /* --- Toggles do jogador durante o combate --- */
     bool      tiros_ativos;       /* Q alterna; quando false, auto-fire pausa */
+
+    /* --- Render target do letterbox ---
+     * Todo o jogo é renderizado num framebuffer fixo de LARGURA_TELA × ALTURA_TELA
+     * e depois copiado escalado pra janela atual (mantendo aspect ratio). Assim
+     * o conteúdo nunca cropa quando o usuário muda resolução ou redimensiona. */
+    RenderTexture2D render_target;
 } EstadoJogo;
 
 #endif /* TIPOS_H */
