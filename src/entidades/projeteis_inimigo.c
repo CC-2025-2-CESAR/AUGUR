@@ -10,7 +10,9 @@
 
 #include "projeteis_inimigo.h"
 #include "projeteis_inimigo_tipos.h"
+#include "../core/assets.h"
 #include <stdlib.h>
+#include <math.h>
 
 
 static int contar_nos(const ProjetilInimigoNo *cabeca) {
@@ -44,6 +46,7 @@ void projeteis_inimigo_spawnar(EstadoJogo *ej,
     novo->dados.raio          = p->raio;
     novo->dados.cor           = p->cor;
     novo->dados.vivo          = true;
+    novo->dados.tipo_origem   = (int)tipo_origem;
 
     novo->proximo                 = ej->projeteis_inimigo_cabeca;
     ej->projeteis_inimigo_cabeca  = novo;
@@ -82,8 +85,32 @@ void projeteis_inimigo_desenhar(const EstadoJogo *ej) {
     for (const ProjetilInimigoNo *pno = ej->projeteis_inimigo_cabeca;
          pno != NULL; pno = pno->proximo) {
         if (!pno->dados.vivo) continue;
-        DrawCircleV(pno->dados.posicao, pno->dados.raio, pno->dados.cor);
-        DrawCircleV(pno->dados.posicao, pno->dados.raio * 0.4f, WHITE);
+
+        /* Tenta usar sprite do projetil baseado no tipo do inimigo origem.
+         * Se a textura nao carregou (id==0), cai pro fallback de circulo. */
+        Texture2D tex = (Texture2D){0};
+        int t = pno->dados.tipo_origem;
+        if (t >= 0 && t < ASSETS_NUM_INIMIGOS) {
+            tex = g_assets.projeteis_inimigo[t];
+        }
+
+        if (tex.id != 0) {
+            /* Sprite apontando +X no PNG: rotaciona pela direcao da velocidade. */
+            float ang_deg = atan2f(pno->dados.velocidade.y,
+                                   pno->dados.velocidade.x) * (180.0f / 3.14159265f);
+            /* Tamanho em tela = diametro * SPRITE_VISUAL_SCALE, igual ao
+             * sistema das magias do player. */
+            float lado = pno->dados.raio * 2.0f * SPRITE_VISUAL_SCALE;
+            Rectangle src = { 0.0f, 0.0f, (float)tex.width, (float)tex.height };
+            Rectangle dst = { pno->dados.posicao.x, pno->dados.posicao.y,
+                              lado, lado };
+            Vector2 origem = { lado * 0.5f, lado * 0.5f };  /* gira no centro */
+            DrawTexturePro(tex, src, dst, origem, ang_deg, WHITE);
+        } else {
+            /* Fallback: circulo colorido (mantem comportamento antigo). */
+            DrawCircleV(pno->dados.posicao, pno->dados.raio, pno->dados.cor);
+            DrawCircleV(pno->dados.posicao, pno->dados.raio * 0.4f, WHITE);
+        }
     }
 }
 

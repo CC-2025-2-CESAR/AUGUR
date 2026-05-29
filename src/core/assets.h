@@ -52,9 +52,10 @@
  * funções de render testam isso e caem pro fallback (DrawCircle etc.). */
 typedef struct {
     Texture2D jogador;
-    Texture2D inimigos[ASSETS_NUM_INIMIGOS];      /* indexado por TipoInimigo */
-    Texture2D magias[ELEMENTO_TOTAL];             /* indexado por Elemento */
-    Texture2D tileset;                            /* chão de templo (10 tiles) */
+    Texture2D inimigos[ASSETS_NUM_INIMIGOS];          /* indexado por TipoInimigo */
+    Texture2D projeteis_inimigo[ASSETS_NUM_INIMIGOS]; /* 1 sprite por TipoInimigo (id=0 se nao atira) */
+    Texture2D magias[ELEMENTO_TOTAL];                 /* indexado por Elemento */
+    Texture2D tileset;                                /* tileset do chao (10 tiles 64x64 - grama) */
 } Assets;
 
 /* Layout de uma sprite sheet. Convenção (igual pros 5 personagens animados):

@@ -780,12 +780,12 @@ static void jogo_resetar_run(EstadoJogo *ej) {
 /* ============================================================================
  * CHÃO DO MUNDO (TILESET + FALLBACK DE GRID)
  * --------------------------------------------------------------------------
- * Tile-set da Luísa (10 tiles 32×32 seamless do templo). Pra cada célula
- * visível, hash determinístico (x,y) escolhe qual tile vai ali — mesmo tile
- * SEMPRE na mesma posição de mundo (não pisca a cada frame). Os pesos
- * priorizam `plain`/`plain2` (60+20 = 80%) e usam os tiles "raros" (runa,
- * mosaico, glifo, fissura) só ocasionalmente, replicando os pesos sugeridos
- * em assets/sprites/background/tiles.json.
+ * Tile-set da Luísa (10 tiles 64×64 seamless de GRAMA — pack v5). Pra cada
+ * célula visível, hash determinístico (x,y) escolhe qual tile vai ali —
+ * mesmo tile SEMPRE na mesma posição de mundo (não pisca a cada frame).
+ * Os pesos priorizam `plain`/`plain2` (35+22 = 57%) e usam os tiles
+ * "decorativos" (flores, trevos, pedrinha, terra, runa) só ocasionalmente,
+ * replicando os pesos sugeridos em assets/sprites/background/tiles.json.
  *
  * Se o tileset não carregou (PNG faltando), fallback pro grid antigo de
  * linhas — garante que o jogo continua funcional mesmo sem assets.
@@ -840,18 +840,28 @@ static void desenhar_chao_mundo(const Camera2D *camera) {
                              ((unsigned int)y * 19349663u);
             int bucket = (int)(h % 100u);
 
-            /* Pesos copiam aproximadamente o tiles.json:
-             *   0..59  → plain      (idx 0)
-             *   60..79 → plain2     (idx 1)
-             *   80..89 → crack      (idx 2)
-             *   90..94 → moss       (idx 3)
-             *   95..99 → variável dos "raros" (4..9 conforme disponível) */
+            /* Pesos copiam o tiles.json do pack v5 (biome: grama):
+             *   0..34   → plain        (idx 0)
+             *   35..56  → plain2       (idx 1)
+             *   57..64  → patch_grass  (idx 2)
+             *   65..71  → flowers_y    (idx 3)
+             *   72..77  → flowers_w    (idx 4)
+             *   78..82  → flowers_b    (idx 5)
+             *   83..86  → small_rock   (idx 6)
+             *   87..90  → dirt_patch   (idx 7)
+             *   91..97  → clover       (idx 8)
+             *   98..99  → rune_glow    (idx 9)  — raro, mantém vibe mágica */
             int idx;
-            if      (bucket < 60) idx = 0;
-            else if (bucket < 80) idx = 1 % n_tiles;
-            else if (bucket < 90) idx = 2 % n_tiles;
-            else if (bucket < 95) idx = 3 % n_tiles;
-            else                  idx = (4 + (bucket - 95)) % n_tiles;
+            if      (bucket < 35) idx = 0;
+            else if (bucket < 57) idx = 1 % n_tiles;
+            else if (bucket < 65) idx = 2 % n_tiles;
+            else if (bucket < 72) idx = 3 % n_tiles;
+            else if (bucket < 78) idx = 4 % n_tiles;
+            else if (bucket < 83) idx = 5 % n_tiles;
+            else if (bucket < 87) idx = 6 % n_tiles;
+            else if (bucket < 91) idx = 7 % n_tiles;
+            else if (bucket < 98) idx = 8 % n_tiles;
+            else                  idx = 9 % n_tiles;
 
             Rectangle src = { (float)(idx * TILE_LADO), 0,
                               (float)TILE_LADO, (float)TILE_LADO };

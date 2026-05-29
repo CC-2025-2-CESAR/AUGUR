@@ -284,6 +284,7 @@ typedef struct {
     float   raio;
     Color   cor;
     bool    vivo;            /* se false, removido no próximo frame */
+    int     tipo_origem;     /* TipoInimigo que disparou — usado pra escolher sprite */
 } ProjetilInimigo;
 
 typedef struct ProjetilInimigoNo {

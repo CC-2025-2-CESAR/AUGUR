@@ -15,22 +15,27 @@ Tudo vai em `assets/sprites/`, organizado por categoria:
 ```
 assets/sprites/
 ├── personagem/
-│   └── augur_sheet.png       (+ augur.json — opcional, metadata)
+│   └── augur_sheet.png       (64×64/frame) + augur.json
 ├── inimigos/
-│   ├── carnical_sheet.png    (corpo a corpo) + carnical.json
-│   ├── vidente_sheet.png     (a distância)   + vidente.json
-│   ├── arauto_sheet.png      (elite, 40×40)  + arauto.json
-│   └── oraculo_sheet.png     (chefe, 64×64)  + oraculo.json
+│   ├── carnical_sheet.png    (corpo a corpo, 64×64) + carnical.json
+│   ├── vidente_sheet.png     (a distância, 64×64)   + vidente.json
+│   ├── arauto_sheet.png      (elite, 80×80)         + arauto.json
+│   ├── oraculo_sheet.png     (chefe, 128×128)       + oraculo.json
+│   ├── projetil_corpo_a_corpo.png  (32×32, placeholder — não atira)
+│   ├── projetil_vidente.png        (32×32) ─┐ projéteis de inimigo,
+│   ├── projetil_elite.png          (32×32)  │ 1 por TipoInimigo,
+│   ├── projetil_oraculo.png        (32×32) ─┘ apontando +X
+│   └── projeteis_inimigo.json      (índices + nota de quem atira)
 ├── magias/
-│   ├── magia_fogo.png        (16×16 ou 24×24)
+│   ├── magia_fogo.png        (32×32, apontando +X)
 │   ├── magia_gelo.png
 │   ├── magia_relampago.png
 │   ├── magia_veneno.png
 │   ├── magia_arcano.png
 │   └── magia_sombra.png
 └── background/
-    ├── tileset.png           (atlas com N tiles em 1 linha)
-    ├── tile_*.png            (versões individuais dos tiles, opcional)
+    ├── tileset.png           (atlas: 10 tiles 64×64 em 1 linha = 640×64)
+    ├── tile_*.png            (versões individuais dos tiles, referência)
     └── tiles.json            (pesos sugeridos pra sorteio)
 ```
 
@@ -65,57 +70,56 @@ Todas as sheets seguem **o mesmo layout**: 14 linhas (rows), cada linha = uma an
 
 Hurt e death **não têm versão por direção** — usam a linha única, omnidirecional.
 
-**Tamanhos por entidade** (já mapeados no engine):
+**Tamanhos por entidade** (pack v5 HD, já mapeados no engine em `META_JOGADOR`/`META_INIMIGO`):
 
-| Entidade        | `frame_w × frame_h` atual | Recomendado (2×) | Sheet completa (8 cols × 14 rows) |
-|-----------------|---------------------------|------------------|------------------------------------|
-| Jogador (augur) | 32 × 32                   | **64 × 64**      | 512 × 896                          |
-| Carniçal        | 32 × 32                   | **64 × 64**      | 512 × 896                          |
-| Vidente Falso   | 32 × 32                   | **64 × 64**      | 512 × 896                          |
-| Arauto (elite)  | 40 × 40                   | **80 × 80**      | 640 × 1120                         |
-| Oráculo (chefe) | 64 × 64                   | **128 × 128**    | 1024 × 1792                        |
+| Entidade        | `frame_w × frame_h` | Sheet completa (8 cols × 14 rows) |
+|-----------------|---------------------|------------------------------------|
+| Jogador (augur) | 64 × 64             | 512 × 896                          |
+| Carniçal        | 64 × 64             | 512 × 896                          |
+| Vidente Falso   | 64 × 64             | 512 × 896                          |
+| Arauto (elite)  | 80 × 80             | 640 × 1120                         |
+| Oráculo (chefe) | 128 × 128           | 1024 × 1792                        |
 
-> Por que 2×? Escala inteira mantém pixel art crisp. O engine tem
-> `SPRITE_VISUAL_SCALE = 2.0f` (`src/core/assets.h`) que faz o sprite ocupar
-> 2× o diâmetro da hitbox na tela — assim o detalhe extra do PNG aparece
-> visível, não só "embutido". Se mudar pra 3×, ajustar o define junto.
+> Tamanhos HD mantêm pixel art crisp. O tamanho NA TELA é controlado por
+> `SPRITE_VISUAL_SCALE = 2.0f` (`src/core/assets.h`), independente do
+> `frame_w` — aumentar o frame só dá mais detalhe; pra mudar o tamanho
+> renderizado, mexe no define. Pra um pack futuro 3×, basta entregar PNGs
+> maiores que o engine se adapta (só atualizar `frame_w/frame_h` no META).
 
 ### 1.4 Sprites de magia (estáticos)
 
 Magias usam **1 frame único** (não animado): um PNG por elemento com a "ponta" do projétil apontando pra **direita** (+X). O engine rotaciona em runtime com `atan2(velocidade)`, então o sprite só precisa estar orientado pra direita; ele gira naturalmente conforme a magia voa.
 
-| Atual            | Recomendado |
-|------------------|-------------|
-| 16×16 ou 24×24   | **32 × 32** |
+Tamanho do pack v5: **32 × 32** por elemento.
 
 O lado do projétil renderizado é `mg->raio * 2 * SPRITE_VISUAL_SCALE`, então com fator 2× um projétil de raio 8 vira 32px na tela — coerente com o sprite PNG.
+
+Os **projéteis de inimigo** (`projetil_*.png`) seguem a mesma regra: 32×32, apontando +X, 1 por `TipoInimigo`. Só vidente e oráculo realmente atiram — `projetil_corpo_a_corpo.png` e `projetil_elite.png` são placeholders (esses inimigos têm `pode_atirar=false` em `projeteis_inimigo_tipos.c`).
 
 ### 1.5 Tileset do chão
 
 `tileset.png` é um atlas horizontal: N tiles **quadrados de mesmo lado** lado a lado em uma única linha. Todos os tiles compartilham a mesma borda de "rejunte" pra que qualquer combinação encaixe sem emenda visível.
 
-| Atual         | Recomendado |
-|---------------|-------------|
-| 32 × 32 por tile, sheet 320×32 (10 tiles) | **64 × 64 por tile, sheet 640×64** |
+Pack v5: **10 tiles de 64 × 64**, atlas de **640 × 64**. Bioma: **grama** (substituiu o tema templo do pack anterior).
 
-O engine usa `TILE_LADO = tileset.height` automaticamente — basta entregar tiles maiores que o chão fica maior no mundo, sem mexer no código. Mantenha 10 tiles na ordem atual pra os pesos do `tiles.json` continuarem batendo.
+O engine usa `TILE_LADO = tileset.height` automaticamente — basta entregar tiles maiores que o chão fica maior no mundo, sem mexer no código. Mantenha os 10 tiles na ordem do `tiles.json` pra os pesos continuarem batendo.
 
-Tiles atuais (`tile_*.png` individuais + `tileset.png` atlas):
+Tiles do pack v5 (`tile_*.png` individuais + `tileset.png` atlas), na ordem dos índices do `tiles.json`:
 
-| Tile               | Peso aproximado | Uso |
-|--------------------|-----------------|-----|
-| `tile_plain`       | 60%             | base — chão limpo |
-| `tile_plain2`      | 20%             | variação da base |
-| `tile_crack`       | 10%             | lajota rachada |
-| `tile_moss`        | 5%              | musgo/desgaste |
-| `tile_rubble`      | 1%              | escombro |
-| `tile_rune_cyan`   | 1%              | runa ciano (raro) |
-| `tile_gold_mosaic` | 1%              | mosaico dourado (raro) |
-| `tile_bird_glyph`  | 1%              | glifo de ave (raro) |
-| `tile_fissure_glow`| 1%              | fissura com luz ciano (raro) |
-| `tile_tiles_quad`  | <1%             | quebra escala (4 lajotas menores) |
+| Índice | Tile          | Peso | Uso |
+|--------|---------------|------|-----|
+| 0      | `plain`       | 35%  | base — grama limpa |
+| 1      | `plain2`      | 22%  | variação da base |
+| 2      | `patch_grass` | 8%   | tufo de grama mais densa |
+| 3      | `flowers_y`   | 7%   | florzinhas amarelas |
+| 4      | `flowers_w`   | 6%   | florzinhas brancas |
+| 5      | `flowers_b`   | 5%   | florzinhas azuis |
+| 6      | `small_rock`  | 4%   | pedrinha |
+| 7      | `dirt_patch`  | 4%   | terra exposta |
+| 8      | `clover`      | 7%   | trevos |
+| 9      | `rune_glow`   | 2%   | runa brilhante (raro — mantém a vibe mágica) |
 
-Os pesos vivem inline no engine (`src/core/main.c`, função `desenhar_chao_mundo`). Pra mudar o "tom" do chão, ajuste os buckets lá.
+Os pesos vivem inline no engine (`src/core/main.c`, função `desenhar_chao_mundo`) e espelham o `tiles.json`. Pra mudar o "tom" do chão, ajuste os buckets lá.
 
 ### 1.6 Checklist antes de commitar
 
@@ -123,15 +127,15 @@ Os pesos vivem inline no engine (`src/core/main.c`, função `desenhar_chao_mund
 - [ ] Naming em `snake_case` ASCII (sem acento), conforme tabela 1.1.
 - [ ] Sheet de personagem/inimigo tem 14 rows na ordem da tabela 1.3.
 - [ ] Todos os frames dentro de uma sheet têm o mesmo tamanho.
-- [ ] Magia aponta pra direita no PNG (engine rotaciona).
-- [ ] Tile é 32×32 e bate a borda com os outros tiles do tileset.
+- [ ] Magia/projétil de inimigo aponta pra direita (+X) no PNG (engine rotaciona).
+- [ ] Tile é 64×64 e bate a borda com os outros tiles do tileset.
 - [ ] `mingw32-make && ./augur` mostra a sheet renderizando.
 
 ---
 
 ## Parte 2 — Integração no engine
 
-A integração está **pronta** em `src/core/assets.{c,h}` e nos três `_desenhar` (jogador, inimigos, magias) + `desenhar_chao_mundo` em `main.c`. Esta seção explica como o sistema funciona pra que quem quiser estender (ex.: adicionar um inimigo novo, animação extra, ou versão direcional pra 8 sentidos) consiga.
+A integração está **pronta** em `src/core/assets.{c,h}` e nos quatro `_desenhar` (jogador, inimigos, magias, projéteis de inimigo) + `desenhar_chao_mundo` em `main.c`. Esta seção explica como o sistema funciona pra que quem quiser estender (ex.: adicionar um inimigo novo, animação extra, ou versão direcional pra 8 sentidos) consiga.
 
 ### 2.1 Módulo `assets` (texturas globais)
 
@@ -140,8 +144,9 @@ A integração está **pronta** em `src/core/assets.{c,h}` e nos três `_desenha
 ```c
 typedef struct {
     Texture2D jogador;
-    Texture2D inimigos[ASSETS_NUM_INIMIGOS];   /* 4: indexado por TipoInimigo */
-    Texture2D magias[ELEMENTO_TOTAL];          /* 6: indexado por Elemento */
+    Texture2D inimigos[ASSETS_NUM_INIMIGOS];          /* 4: indexado por TipoInimigo */
+    Texture2D projeteis_inimigo[ASSETS_NUM_INIMIGOS]; /* 1 por TipoInimigo (id=0 se nao atira) */
+    Texture2D magias[ELEMENTO_TOTAL];                 /* 6: indexado por Elemento */
     Texture2D tileset;
 } Assets;
 
@@ -252,7 +257,7 @@ Resultado: o inimigo joga a animação completa antes de sumir. O `contar_nos` c
 
 ```c
 float angulo_deg = atan2f(mg->velocidade.y, mg->velocidade.x) * RAD2DEG;
-float lado = mg->raio * 2.0f;
+float lado = mg->raio * 2.0f * SPRITE_VISUAL_SCALE;
 Rectangle src = { 0, 0, (float)tex.width, (float)tex.height };
 Rectangle dst = { mg->posicao.x, mg->posicao.y, lado, lado };
 Vector2 origem = { lado * 0.5f, lado * 0.5f };
@@ -266,13 +271,18 @@ DrawTexturePro(tex, src, dst, origem, angulo_deg, WHITE);
 A função substitui o `desenhar_grid_mundo` antigo. Algoritmo:
 
 1. Calcula a área visível em coordenadas de mundo (baseado em `camera.target`, `camera.zoom` e `LARGURA_TELA/ALTURA_TELA`).
-2. Pra cada célula 32×32 na área visível, calcula `hash = (x * 73856093) ^ (y * 19349663)` (primos clássicos pra hash espacial).
-3. `bucket = hash % 100` decide qual tile usar:
-   - 0..59 → `tile_plain` (idx 0)
-   - 60..79 → `tile_plain2` (idx 1)
-   - 80..89 → `tile_crack` (idx 2)
-   - 90..94 → `tile_moss` (idx 3)
-   - 95..99 → raros (índices variáveis)
+2. `TILE_LADO = tileset.height` (64 no pack v5). Pra cada célula na área visível, calcula `hash = (x * 73856093) ^ (y * 19349663)` (primos clássicos pra hash espacial).
+3. `bucket = hash % 100` decide qual tile usar (pesos do bioma grama, espelham `tiles.json`):
+   - 0..34 → `plain` (idx 0)
+   - 35..56 → `plain2` (idx 1)
+   - 57..64 → `patch_grass` (idx 2)
+   - 65..71 → `flowers_y` (idx 3)
+   - 72..77 → `flowers_w` (idx 4)
+   - 78..82 → `flowers_b` (idx 5)
+   - 83..86 → `small_rock` (idx 6)
+   - 87..90 → `dirt_patch` (idx 7)
+   - 91..97 → `clover` (idx 8)
+   - 98..99 → `rune_glow` (idx 9, raro)
 4. Hash é **determinístico** em `(x, y)` — mesma posição no mundo sempre tem o mesmo tile, então o chão não "pisca" entre frames.
 
 Fallback se `tileset.png` faltar: grid de linhas escuras 128×128 (comportamento original).
@@ -311,12 +321,15 @@ EndDrawing();
 
 ### 2.11 Tabela de integração — arquivo → função → `g_assets.X`
 
-| Arquivo                          | Função                  | Textura usada                  | Fallback                  |
-|----------------------------------|-------------------------|--------------------------------|---------------------------|
-| `src/entidades/jogador.c`        | `jogador_desenhar`      | `g_assets.jogador`             | `DrawCircleV` + indicador |
-| `src/entidades/inimigos.c`       | `inimigos_desenhar`     | `g_assets.inimigos[i->tipo]`   | `DrawCircleV` com alpha   |
-| `src/entidades/magias.c`         | `magias_desenhar`       | `g_assets.magias[mg->elemento]`| `DrawCircleV` colorido    |
-| `src/core/main.c`                | `desenhar_chao_mundo`   | `g_assets.tileset`             | Grid de linhas 128×128    |
+| Arquivo                          | Função                       | Textura usada                              | Fallback                  |
+|----------------------------------|------------------------------|--------------------------------------------|---------------------------|
+| `src/entidades/jogador.c`        | `jogador_desenhar`           | `g_assets.jogador`                         | `DrawCircleV` + indicador |
+| `src/entidades/inimigos.c`       | `inimigos_desenhar`          | `g_assets.inimigos[i->tipo]`               | `DrawCircleV` com alpha   |
+| `src/entidades/magias.c`         | `magias_desenhar`            | `g_assets.magias[mg->elemento]`            | `DrawCircleV` colorido    |
+| `src/entidades/projeteis_inimigo.c` | `projeteis_inimigo_desenhar` | `g_assets.projeteis_inimigo[tipo_origem]`  | `DrawCircleV` colorido    |
+| `src/core/main.c`                | `desenhar_chao_mundo`        | `g_assets.tileset`                         | Grid de linhas 128×128    |
+
+> **Projétil de inimigo** (`projeteis_inimigo.c`) é o gêmeo das magias do player: sprite 32×32 apontando +X, rotacionado por `atan2(velocidade)`, escalado por `SPRITE_VISUAL_SCALE`, com fallback de círculo. A textura é indexada pelo `tipo_origem` (o `TipoInimigo` de quem disparou), gravado no projétil em `projeteis_inimigo_spawnar`. Corpo-a-corpo e elite têm PNG placeholder mas `pode_atirar=false`, então nunca aparecem.
 
 ### 2.12 Makefile
 
