@@ -1,0 +1,89 @@
+{
+  "tile_size": 32,
+  "seamless": true,
+  "note": "Todos os tiles dividem a mesma borda de rejunte; qualquer combina\u00e7\u00e3o encaixa.",
+  "weights_sugeridos": {
+    "plain": 30,
+    "plain2": 30,
+    "crack": 8,
+    "moss": 8,
+    "rubble": 6,
+    "tiles_quad": 6,
+    "rune_cyan": 4,
+    "gold_mosaic": 3,
+    "bird_glyph": 3,
+    "fissure_glow": 2
+  },
+  "tiles": {
+    "plain": {
+      "index": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    "plain2": {
+      "index": 1,
+      "size": [
+        32,
+        32
+      ]
+    },
+    "crack": {
+      "index": 2,
+      "size": [
+        32,
+        32
+      ]
+    },
+    "rune_cyan": {
+      "index": 3,
+      "size": [
+        32,
+        32
+      ]
+    },
+    "gold_mosaic": {
+      "index": 4,
+      "size": [
+        32,
+        32
+      ]
+    },
+    "bird_glyph": {
+      "index": 5,
+      "size": [
+        32,
+        32
+      ]
+    },
+    "moss": {
+      "index": 6,
+      "size": [
+        32,
+        32
+      ]
+    },
+    "rubble": {
+      "index": 7,
+      "size": [
+        32,
+        32
+      ]
+    },
+    "fissure_glow": {
+      "index": 8,
+      "size": [
+        32,
+        32
+      ]
+    },
+    "tiles_quad": {
+      "index": 9,
+      "size": [
+        32,
+        32
+      ]
+    }
+  }
+}
