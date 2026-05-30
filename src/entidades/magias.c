@@ -109,8 +109,8 @@ static bool calcular_tempo_intercepcao(Vector2 D, Vector2 V,
 }
 
 
-/* Vetor unitário do jogador até o inimigo VIVO (não-aliado) mais próximo,
- * com MIRA PREDITIVA: aponta pra onde o inimigo VAI estar quando o projétil
+/* Vetor unitário do jogador até o inimigo VIVO mais próximo, com MIRA
+ * PREDITIVA: aponta pra onde o inimigo VAI estar quando o projétil
  * chegar, em vez de onde ele está agora. Resolve uma quadrática de
  * interceptação balística usando a velocidade que a IA escreveu no frame
  * anterior (defasagem desprezível com dt~16ms).
@@ -128,7 +128,7 @@ static bool mirar_mais_proximo(const EstadoJogo *ej,
     const InimigoNo *perto = NULL;
     float menor = 1e30f;
     for (const InimigoNo *ino = ej->inimigos_cabeca; ino; ino = ino->proximo) {
-        if (!ino->dados.vivo || ino->dados.aliado) continue;
+        if (!ino->dados.vivo) continue;
         float dx = ino->dados.posicao.x - ej->jogador.posicao.x;
         float dy = ino->dados.posicao.y - ej->jogador.posicao.y;
         float d2 = dx * dx + dy * dy;

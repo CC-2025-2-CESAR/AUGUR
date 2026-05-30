@@ -107,9 +107,5 @@ void dado_aplicar_na_carta(int resultado, int faces, Carta *carta) {
     } 
     else if (carta->tipo == CARTA_VELOCIDADE_UP) {
         snprintf(carta->descricao, 256, "Aumenta sua velocidade de movimento.\n+%d de velocidade.%s", novo_valor, sufixo);
-    } 
-    else if (carta->tipo == CARTA_MAIS_MAGIAS) {
-        snprintf(carta->descricao, 256, "Adiciona mais magias ativas.\n+%d magias.%s", novo_valor, sufixo);
-    } 
-
+    }
 }

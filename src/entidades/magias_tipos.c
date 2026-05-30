@@ -110,12 +110,6 @@ const int QTD_PARAMETROS_MAGIA =
 
 #define AUTO_FIRE_SLOTS 4
 
-/* Quanto o cooldown encolhe enquanto o efeito Reduz Cooldown está ativo.
- * Como EF_REDUZ_COOLDOWN saiu do pool de profecias, mp->reduz_cooldown_tempo
- * fica em 0 hoje — o bloco existe pra eventual reintrodução via carta. */
-static const float FATOR_REDUZ_COOLDOWN = 0.5f;
-
-
 /* Devolve o elemento associado ao slot do auto-fire:
  *   slots 0..2 = elementos dos mods da profecia
  *   slot 3     = magia inicial escolhida (ou Arcano default se ainda nao foi escolhida)
@@ -143,9 +137,7 @@ void magias_tipos_processar_auto_fire(EstadoJogo *ej) {
         if ((int)e < 0 || (int)e >= QTD_PARAMETROS_MAGIA) e = ELEMENTO_ARCANO;
 
         if (magias_disparar_elemento(ej, e)) {
-            float intervalo = PARAMETROS_MAGIA[e].intervalo_disparo;
-            if (mp->reduz_cooldown_tempo > 0.0f) intervalo *= FATOR_REDUZ_COOLDOWN;
-            mp->cooldown_global_disparo = intervalo;
+            mp->cooldown_global_disparo = PARAMETROS_MAGIA[e].intervalo_disparo;
             mp->prox_slot_disparo = (slot + 1) % AUTO_FIRE_SLOTS;
             return;
         }

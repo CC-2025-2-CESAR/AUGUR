@@ -1,24 +1,10 @@
 /* ============================================================================
  * inimigos.c - ENGINE DE INIMIGOS
- * ============================================================================
- *
- * Lista encadeada de inimigos. Esta camada NÃO conhece tipos específicos —
- * ela orquestra o frame em três passes:
- *
- *   PASS 1 (IA + movimento):
- *     Pra cada inimigo vivo, chama inimigos_tipos_executar_ia(), que escreve
- *     em i->velocidade. Em seguida aplica `posicao += velocidade * dt`.
- *
- *   PASS 2 (push-out inimigo↔inimigo):
- *     Loop O(n²): pra cada par sobrepondo, empurra metade do overlap em cada
- *     direção. Resultado: inimigos não se empilham.
- *
- *   PASS 3 (remoção):
- *     Caminha a lista com ponteiro duplo e dá free() em quem foi marcado
- *     como morto pela colisão.
- *
- * Render usa a cor de PARAMETROS_INIMIGO[tipo].cor — é só a engine olhando
- * a tabela do conteúdo.
+ * ----------------------------------------------------------------------------
+ * Lista encadeada de inimigos. Não conhece tipos específicos — orquestra o
+ * frame em passes: (1) status + IA + movimento, (1.5) disparo de projétil,
+ * (2) push-out O(n²) entre inimigos, (3) animação de morte + free. Os stats e
+ * a IA vêm das tabelas da Luísa (inimigos_tipos.c, projeteis_inimigo_tipos.c).
  * ============================================================================ */
 
 #include "inimigos.h"
@@ -39,8 +25,8 @@ static int contar_nos(const InimigoNo *cabeca) {
 }
 
 
+/* Cria um inimigo do tipo dado na posição dada (insere na cabeça, O(1)). */
 void inimigos_spawnar_em(EstadoJogo *ej, Vector2 posicao, TipoInimigo tipo) {
-    /* Validações de segurança: tipo dentro do enum e limite de lista. */
     if ((int)tipo < 0 || (int)tipo >= QTD_PARAMETROS_INIMIGO) return;
     if (contar_nos(ej->inimigos_cabeca) >= MAX_INIMIGOS) return;
 
@@ -60,8 +46,8 @@ void inimigos_spawnar_em(EstadoJogo *ej, Vector2 posicao, TipoInimigo tipo) {
     novo->dados.recompensa_biomassa  = p->recompensa_biomassa;
     novo->dados.vivo                 = true;
 
-    /* Campos de status: inimigos_spawnar_em atribui campo a campo (não usa
-     * {0}), então TODO campo novo precisa ser zerado explicitamente aqui. */
+    /* Spawn atribui campo a campo (não usa {0}), então todo campo precisa ser
+     * zerado explicitamente aqui. */
     novo->dados.congelado_tempo           = 0.0f;
     novo->dados.veneno_tempo              = 0.0f;
     novo->dados.veneno_dps                = 0.0f;
@@ -69,11 +55,8 @@ void inimigos_spawnar_em(EstadoJogo *ej, Vector2 posicao, TipoInimigo tipo) {
     novo->dados.veneno_acumulado          = 0.0f;
     novo->dados.marca_termica_tempo       = 0.0f;
     novo->dados.proxima_hit_multiplicador = 1.0f;
-    novo->dados.aliado                    = false;
-    novo->dados.vida_aliado_restante      = 0.0f;
     novo->dados.timer_disparo             = 0.0f;
 
-    /* Visual: direção/animação default (sheet da Luísa). */
     novo->dados.direcao_atual    = DIR_DOWN;
     novo->dados.animacao_atual   = ANIM_IDLE;
     novo->dados.animacao_tempo   = 0.0f;
@@ -84,42 +67,19 @@ void inimigos_spawnar_em(EstadoJogo *ej, Vector2 posicao, TipoInimigo tipo) {
 }
 
 
-/* Caminho único de morte. Idempotente: se já está morto, não credita de
- * novo (evita biomassa dobrada quando DoT e projétil matam no mesmo frame).
- * O free real fica no PASS 3 de inimigos_atualizar. Aliados (spawnados por
- * profecia) não dão recompensa — são removidos direto, sem passar por aqui. */
+/* Caminho único de morte. Idempotente (não credita biomassa duas vezes se DoT
+ * e projétil matam no mesmo frame). Inicia a animação DEATH; o free real fica
+ * no PASS 3 de inimigos_atualizar. Alimenta o motor de profecia (Ao matar). */
 void inimigos_registrar_morte(EstadoJogo *ej, Inimigo *i) {
     if (i == NULL || !i->vivo) return;
     i->vivo = false;
-    /* Anim DEATH rola por morrendo_tempo segundos antes do PASS 3 dar free.
-     * Velocidade zerada pra ele não escorregar enquanto a animação roda. */
-    i->morrendo_tempo  = 0.6f;
+    i->morrendo_tempo  = 0.6f;   /* anim DEATH rola por este tempo antes do free */
     i->animacao_atual  = ANIM_DEATH;
     i->animacao_tempo  = 0.0f;
     i->velocidade      = (Vector2){ 0.0f, 0.0f };
 
     ej->jogador.biomassa += i->recompensa_biomassa;
-    /* Caminho único de morte alimenta o motor de profecia (combo, Ao matar).
-     * O guard de reentrância em profecia_aplicar_efeito impede recursão se
-     * o efeito disparado também matar (explosão em cadeia). */
     profecia_evento_ao_matar(ej, i);
-}
-
-
-void inimigos_spawnar_aliado(EstadoJogo *ej, Vector2 pos,
-                             float vida_frac, float duracao) {
-    InimigoNo *antes = ej->inimigos_cabeca;
-    inimigos_spawnar_em(ej, pos, INIMIGO_CORPO_A_CORPO);
-    if (ej->inimigos_cabeca == antes) return;   /* lista cheia: spawn falhou */
-
-    Inimigo *d = &ej->inimigos_cabeca->dados;   /* spawnar_em insere na cabeça */
-    d->aliado               = true;
-    d->vida_aliado_restante = (duracao > 0.0f) ? duracao : 0.01f;
-
-    int nova = (int)((float)d->vida_maxima * vida_frac);
-    if (nova < 1) nova = 1;
-    d->vida        = nova;
-    d->vida_maxima = nova;
 }
 
 
@@ -141,7 +101,7 @@ void inimigos_atualizar(EstadoJogo *ej) {
             if (d->marca_termica_tempo < 0.0f) d->marca_termica_tempo = 0.0f;
         }
 
-        /* DoT do veneno: acumulador float evita truncar pra 0 com int vida. */
+        /* DoT do veneno: acumulador float evita truncar pra 0 com o int vida. */
         if (d->veneno_tempo > 0.0f) {
             d->veneno_tempo -= dt;
             d->veneno_acumulado += d->veneno_dps * dt;
@@ -162,15 +122,6 @@ void inimigos_atualizar(EstadoJogo *ej) {
             }
         }
 
-        /* Aliado temporário (EF_SPAWNA_ALIADO) expira sem recompensa. */
-        if (d->vida_aliado_restante > 0.0f) {
-            d->vida_aliado_restante -= dt;
-            if (d->vida_aliado_restante <= 0.0f) {
-                d->vivo = false;   /* direto: aliado não vale pontuação */
-                continue;
-            }
-        }
-
         inimigos_tipos_executar_ia(d, ej);
 
         /* Congelado: a IA já escreveu velocidade; zeramos antes de integrar. */
@@ -182,8 +133,7 @@ void inimigos_atualizar(EstadoJogo *ej) {
         d->posicao.x += d->velocidade.x * dt;
         d->posicao.y += d->velocidade.y * dt;
 
-        /* Direção do sprite olha pro jogador (eixo dominante). Aliado
-         * (spawnado por profecia) também olha pro jogador — ele acompanha. */
+        /* Direção do sprite olha pro jogador (eixo dominante). */
         float dxp = ej->jogador.posicao.x - d->posicao.x;
         float dyp = ej->jogador.posicao.y - d->posicao.y;
         if (fabsf(dxp) > fabsf(dyp))
@@ -191,8 +141,8 @@ void inimigos_atualizar(EstadoJogo *ej) {
         else
             d->direcao_atual = (dyp < 0.0f) ? DIR_UP   : DIR_DOWN;
 
-        /* Animação: walk se está se movendo, idle se parado.
-         * animacao_tempo reseta na transição pra que cada anim mostre do frame 0. */
+        /* Animação: walk se movendo, idle se parado. Reseta o tempo na transição
+         * pra cada animação começar do frame 0. */
         float vel2 = d->velocidade.x * d->velocidade.x +
                      d->velocidade.y * d->velocidade.y;
         int nova_anim = (vel2 > 1.0f) ? ANIM_WALK : ANIM_IDLE;
@@ -205,13 +155,11 @@ void inimigos_atualizar(EstadoJogo *ej) {
     }
 
     /* ----- PASS 1.5: disparo de projétil -----
-     * Mecânica 100% engine; o QUE/QUANTO vem da tabela tunável da Luísa
-     * (projeteis_inimigo_tipos.c). A IA dela (ia_kiter) fica intocada — só
-     * mantém distância; o tiro acontece aqui. Inimigo congelado ou aliado
-     * não atira; só dispara com o jogador dentro do alcance. */
+     * Mecânica 100% engine; o QUE/QUANTO vem da tabela da Luísa. Inimigo
+     * congelado não atira; só dispara com o jogador dentro do alcance. */
     for (InimigoNo *ino = ej->inimigos_cabeca; ino != NULL; ino = ino->proximo) {
         Inimigo *d = &ino->dados;
-        if (!d->vivo || d->aliado || d->congelado_tempo > 0.0f) continue;
+        if (!d->vivo || d->congelado_tempo > 0.0f) continue;
         if ((int)d->tipo < 0 ||
             (int)d->tipo >= QTD_PARAMETROS_PROJETIL_INIMIGO) continue;
 
@@ -233,9 +181,8 @@ void inimigos_atualizar(EstadoJogo *ej) {
     }
 
     /* ----- PASS 2: push-out inimigo↔inimigo (O(n²)) -----
-     * Pra cada par (a, b) com a vindo antes de b na lista: se os círculos
-     * se sobrepõem, empurra cada um por metade do overlap. Caso degenerado
-     * (centros coincidentes): empurra "a" pra direita, deixa "b" parado. */
+     * Pra cada par sobreposto, empurra cada um por metade do overlap. Caso
+     * degenerado (centros coincidentes): separa "a" minimamente. */
     for (InimigoNo *a = ej->inimigos_cabeca; a != NULL; a = a->proximo) {
         if (!a->dados.vivo) continue;
         for (InimigoNo *b = a->proximo; b != NULL; b = b->proximo) {
@@ -256,28 +203,22 @@ void inimigos_atualizar(EstadoJogo *ej) {
                 b->dados.posicao.x += empurrar_x;
                 b->dados.posicao.y += empurrar_y;
             } else if (dist2 <= 0.0001f) {
-                /* Coincidência exata — separa minimamente. */
                 a->dados.posicao.x -= 1.0f;
             }
         }
     }
 
-    /* ----- PASS 3: animação de morte + remoção -----
-     * `**atual` aponta pro próximo ponteiro a ser modificado: ou a cabeça
-     * da lista, ou o campo `proximo` do nó anterior. Permite remover nós
-     * sem if especial pra cabeça.
-     *
-     * Inimigos com `morrendo_tempo > 0` ficam na lista enquanto a animação
-     * DEATH roda — só são removidos depois que o timer zera. Isso mantém
-     * `contar_nos` respeitando MAX_INIMIGOS durante a "fila de morte",
-     * evitando spawn descontrolado em hordas grandes. */
+    /* ----- PASS 3: animação de morte + remoção (ponteiro duplo) -----
+     * `**atual` aponta pro próximo ponteiro a modificar (cabeça ou o `proximo`
+     * do nó anterior), removendo sem caso especial pra cabeça. Quem está com
+     * morrendo_tempo > 0 fica na lista até a animação DEATH terminar. */
     InimigoNo **atual = &ej->inimigos_cabeca;
     while (*atual != NULL) {
         Inimigo *d = &(*atual)->dados;
         if (!d->vivo) {
             if (d->morrendo_tempo > 0.0f) {
                 d->morrendo_tempo -= dt;
-                d->animacao_tempo += dt;   /* anim DEATH continua rolando */
+                d->animacao_tempo += dt;
                 atual = &(*atual)->proximo;
             } else {
                 InimigoNo *morto = *atual;
@@ -296,14 +237,13 @@ void inimigos_desenhar(const EstadoJogo *ej) {
          ino != NULL;
          ino = ino->proximo) {
         const Inimigo *i = &ino->dados;
-        /* Pula só quem já terminou de morrer; quem está com morrendo_tempo>0
-         * continua sendo desenhado pra mostrar a animação DEATH. */
+        /* Continua desenhando quem está morrendo (anim DEATH). */
         if (!i->vivo && i->morrendo_tempo <= 0.0f) continue;
         if ((int)i->tipo < 0 || (int)i->tipo >= QTD_PARAMETROS_INIMIGO) continue;
 
         Texture2D tex = g_assets.inimigos[i->tipo];
         if (tex.id == 0) {
-            /* Fallback original: círculo com alpha por vida (sinaliza HP). */
+            /* Fallback (sprite ausente): círculo com alpha proporcional ao HP. */
             const ParametrosInimigo *p = &PARAMETROS_INIMIGO[i->tipo];
             Color cor = p->cor;
             float vida_ratio = (i->vida_maxima > 0)
@@ -316,18 +256,13 @@ void inimigos_desenhar(const EstadoJogo *ej) {
             continue;
         }
 
-        /* Sprite: escala pra que o frame ocupe ~raio*2*SPRITE_VISUAL_SCALE de
-         * diâmetro em mundo (assets.h). Desacopla visual de hitbox.
-         * Aliado leva tint esverdeado discreto pra sinalizar "do meu lado".
-         * Morrendo: tint não muda — a animação DEATH já comunica. */
+        /* Sprite: escala pra o frame ocupar ~raio*2*SPRITE_VISUAL_SCALE de
+         * diâmetro em mundo (desacopla visual de hitbox, ver assets.h). */
         float escala = (i->raio * 2.0f * SPRITE_VISUAL_SCALE) /
                        (float)META_INIMIGO[i->tipo].frame_w;
-        Color tint = WHITE;
-        if (i->aliado) tint = (Color){ 180, 255, 180, 255 };
-
         desenhar_sheet(tex, &META_INIMIGO[i->tipo], i->posicao,
                        i->direcao_atual, i->animacao_atual,
-                       i->animacao_tempo, escala, tint);
+                       i->animacao_tempo, escala, WHITE);
     }
 }
 

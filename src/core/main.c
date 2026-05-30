@@ -35,7 +35,6 @@
 #include "magias.h"
 #include "inimigos.h"
 #include "projeteis_inimigo.h"
-#include "obstaculos.h"
 #include "cronograma.h"
 #include "cartas.h"
 #include "dados.h"
@@ -494,7 +493,6 @@ static void atualizar_inserir_seed(EstadoJogo *ej) {
  * tela ESCOLHA_MAGIA_INICIAL — o jogador re-escolhe a cada run. */
 static void iniciar_run_com_seed(EstadoJogo *ej, unsigned int seed) {
     profecia_gerar(&ej->profecia, seed);
-    obstaculos_gerar(ej, seed);
 
     ej->salvamento.ultima_seed     = seed;
     ej->salvamento.tem_ultima_seed = true;
@@ -545,7 +543,6 @@ static void atualizar_escolha_magia_inicial(EstadoJogo *ej) {
 
         jogo_resetar_run(ej);
         cronograma_inicializar(&ej->cronograma);
-        profecia_evento_inicio_run(ej);   /* no-op hoje, mantém pra futuro */
         ej->proximo_estado = ESTADO_COMBATE;
     }
 
@@ -594,14 +591,7 @@ static void atualizar_combate(EstadoJogo *ej) {
     projeteis_inimigo_atualizar(ej);                   /* engine Arthur */
     cronograma_atualizar(&ej->cronograma, ej);         /* engine Arthur */
 
-    colisao_verificar_tudo(ej);                        /* engine Arthur */
-
-    /* Obstáculos do mapa bloqueiam tanto o jogador quanto os inimigos.
-     * Resolvidos APÓS colisao_verificar_tudo pra ter a palavra final — assim
-     * inimigo não consegue empurrar o jogador pra dentro de uma árvore.
-     * Stubs por enquanto (porte do sandbox em outra sessão). */
-    obstaculos_resolver_jogador(ej);
-    obstaculos_resolver_inimigos(ej);
+    colisao_verificar_tudo(ej);
 
     if (ej->jogador.vida <= 0) {
         /* Registra a derrota no leaderboard de biomassa antes de transitar.
@@ -761,7 +751,6 @@ static void jogo_desenhar(const EstadoJogo *ej) {
              * pintamos o overlay no fim deste switch. */
             BeginMode2D(ej->camera);
                 desenhar_chao_mundo(&ej->camera);
-                obstaculos_desenhar(ej);
                 magias_desenhar(ej);
                 inimigos_desenhar(ej);
                 projeteis_inimigo_desenhar(ej);
