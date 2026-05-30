@@ -1,12 +1,10 @@
 /* ============================================================================
- * salvamento.c - STUB DO SISTEMA DE SAVE/LOAD
- * ============================================================================
- *
- * TODO: Dev 2 (Sofia) implementar este arquivo.
- *
- * Lembrete: o diretório "saves/" já existe no repositório. Mas em outras
- * máquinas pode não existir. Uma boa prática é usar _mkdir("saves") no
- * Windows antes de tentar abrir o arquivo (include <direct.h>).
+ * salvamento.c - SAVE/LOAD EM ARQUIVO (Sofia / Dev 2)
+ * ----------------------------------------------------------------------------
+ * Grava a DadosSalvos inteira em saves/biomassa.dat via fwrite (requisito de
+ * arquivo do PIF). O campo versao_save é o gate de compatibilidade: se o layout
+ * no disco for de outra versão, zera tudo no carregamento (evita lixo binário
+ * quando a struct muda).
  * ========================================================================== */
 
 #include "salvamento.h"

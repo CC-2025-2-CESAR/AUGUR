@@ -1,38 +1,26 @@
 /* ============================================================================
- * dados.h - INTERFACE DO SISTEMA DE DADOS
- * ============================================================================
- *
- * RESPONSABILIDADE: Dev 2 (Sofia)
- *
- * O jogador escolhe 2 dados antes de cada run. Entre ondas, pode gastar um
- * dado pra "rolar" uma carta e potencialmente melhorar (ou piorar) o efeito.
- *
- * Ex.: carta base é "+10 dano". O jogador rola um d6:
- *   1-2 → +5 dano  (pior)
- *   3-4 → +10 dano (igual)
- *   5   → +15 dano + área maior
- *   6   → +20 dano + ignite
- *
- * A struct Dado (definida em tipos.h) tem: faces (tipo de dado) e
- * ultimo_resultado (pra mostrar na animação de rolar).
- * ========================================================================== */
+ * dados.h - SISTEMA DE DADOS (Sofia / Dev 2)
+ * ----------------------------------------------------------------------------
+ * O jogador leva 2 dados por run. Na tela de upgrade pode gastar um dado pra
+ * "rolar" uma carta e melhorar (ou piorar) o valor dela — risco gerenciado.
+ * A struct Dado (tipos.h) tem faces e ultimo_resultado (0 = ainda carregado).
+ * ============================================================================ */
 
 #ifndef DADOS_H
 #define DADOS_H
 
 #include "tipos.h"
 
-/* Rola o dado d e retorna o resultado (1 a d->faces).
- * Também guarda em d->ultimo_resultado pra UI mostrar. */
+/* Rola o dado (1..faces) e guarda em ultimo_resultado. */
 int dado_rolar(Dado *d);
 
-/* Aplica o resultado de uma rolagem na carta alvo, modificando*/
+/* Aplica o resultado da rolagem na carta (ajusta valor + descrição). */
 void dado_aplicar_na_carta(int resultado, int faces, Carta *carta);
 
-/* Retorna true se o dado está carregado (ultimo_resultado == 0). */
+/* true se o dado está carregado (ultimo_resultado == 0). */
 bool dado_esta_carregado(const Dado *d);
 
-/* Desenha o dado na tela (número de faces + último resultado). */
+/* Desenha o dado (faces + último resultado). */
 void dado_desenhar(const Dado *d, int posicao_x, int posicao_y);
 
 #endif /* DADOS_H */

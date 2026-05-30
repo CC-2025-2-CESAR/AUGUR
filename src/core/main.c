@@ -586,10 +586,10 @@ static void atualizar_combate(EstadoJogo *ej) {
      * tela, isso mantém o player sempre centralizado e o mundo rola em volta. */
     ej->camera.target = ej->jogador.posicao;
 
-    magias_atualizar(ej);                              /* engine Arthur */
-    inimigos_atualizar(ej);                            /* engine Arthur */
-    projeteis_inimigo_atualizar(ej);                   /* engine Arthur */
-    cronograma_atualizar(&ej->cronograma, ej);         /* engine Arthur */
+    magias_atualizar(ej);
+    inimigos_atualizar(ej);
+    projeteis_inimigo_atualizar(ej);
+    cronograma_atualizar(&ej->cronograma, ej);
 
     colisao_verificar_tudo(ej);
 
@@ -781,7 +781,7 @@ static void jogo_desenhar(const EstadoJogo *ej) {
         case ESTADO_CARTAS_UPGRADE:
             DrawText("ESCOLHA UM UPGRADE",
                      LARGURA_TELA/2 - 180, 80, 32, GOLD);
-            cartas_desenhar_ui(ej); /* stub */
+            cartas_desenhar_ui(ej);
             DrawText("(ESPACO pra continuar)",
                      LARGURA_TELA/2 - 150, ALTURA_TELA - 50, 18, GRAY);
             break;
@@ -835,10 +835,10 @@ static void jogo_desenhar(const EstadoJogo *ej) {
  * Chamada UMA VEZ no fim. Libera memória e salva progresso.
  * ========================================================================== */
 static void jogo_finalizar(EstadoJogo *ej) {
-    magias_liberar_tudo(ej);      /* stub — libera lista encadeada */
-    inimigos_liberar_tudo(ej);    /* stub — libera lista encadeada */
+    magias_liberar_tudo(ej);
+    inimigos_liberar_tudo(ej);
     projeteis_inimigo_liberar_tudo(ej);  /* libera lista encadeada */
-    salvamento_salvar(&ej->salvamento);  /* stub — grava arquivo */
+    salvamento_salvar(&ej->salvamento);
 
     /* Libera o render target e as texturas das sprite sheets ANTES do
      * CloseWindow (que destrói o contexto OpenGL). */

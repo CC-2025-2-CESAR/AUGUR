@@ -27,7 +27,7 @@
  *
  * REGRAS DE OURO:
  *   - O CHEFÃO (INIMIGO_CHEFE) é spawnado pela engine automaticamente aos
- *     15:00. NÃO precisa ter linha pra ele aqui — mas se quiser sub-bosses
+ *     5:00. NÃO precisa ter linha pra ele aqui — mas se quiser sub-bosses
  *     em outros tempos, a tabela aceita.
  *   - Múltiplos eventos podem rodar ao mesmo tempo. Querer melee + ranged
  *     juntos a partir dos 2:00? Duas linhas, ambas começando em 120.

@@ -204,7 +204,7 @@ static void ia_chase(Inimigo *i, EstadoJogo *ej) {
  * mecânico — todos giravam no mesmo sentido, raio crescia ao spawnar
  * novo, slots saltavam quando algum morria. A versão isolada é mais
  * orgânica, sem custo de O(N²), e o push-out de inimigos.c ainda evita
- * sobreposição. Disparo de projétil pelo kiter continua TODO. */
+ * sobreposição. O disparo do kiter é feito pela engine (inimigos.c, PASS 1.5). */
 static void ia_kiter(Inimigo *i, EstadoJogo *ej) {
     const float DISTANCIA_IDEAL = 280.0f;
     const float ZONA            =  60.0f;
