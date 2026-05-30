@@ -50,6 +50,9 @@
 #define DIR_LEFT    2
 #define DIR_RIGHT   3
 
+/* Janela (s) do flash vermelho do inimigo ao levar dano (feedback de hit). */
+#define DANO_FLASH_DURACAO 0.12f
+
 /* ============================================================================
  * ENUMS — int com nome legível (em vez de "estado == 2", "estado == COMBATE").
  * O sufixo _TOTAL no fim de um enum vira a contagem automaticamente.
@@ -199,12 +202,17 @@ typedef struct {
     float marca_termica_tempo;       /* janela do combo Choque Térmico (marca de Fogo) */
     float proxima_hit_multiplicador; /* mult. da PRÓXIMA hit recebida (1.0 = normal) */
     float timer_disparo;             /* cooldown do tiro deste inimigo */
+    float ataque_telegrafo_restante; /* >0: corpo a corpo carregando o golpe (windup) */
+    float ataque_cooldown_restante;  /* >0: corpo a corpo em cooldown */
+    float   ataque_lunge_restante;   /* >0: avançando (lunge) na direção travada no golpe */
+    Vector2 ataque_lunge_vel;        /* velocidade do lunge, travada no instante do golpe */
 
     /* Visual (módulo assets). */
     int   direcao_atual;
     int   animacao_atual;
     float animacao_tempo;
     float morrendo_tempo;            /* >0: anim DEATH rolando antes do free */
+    float dano_flash_tempo;          /* >0: pisca vermelho ao levar dano (feedback de hit) */
 } Inimigo;
 
 typedef struct InimigoNo {
@@ -244,6 +252,10 @@ typedef struct {
     Color           cor;
     int             recompensa_biomassa;
     ComportamentoIA comportamento;
+    /* Ataque corpo a corpo telegrafado (alcance_ataque = 0 → só dano de contato). */
+    float           alcance_ataque;   /* dist. centro-a-centro que dispara o golpe */
+    float           telegrafo_ataque; /* s de windup antes de bater (janela de esquiva) */
+    float           cooldown_ataque;  /* s entre golpes */
 } ParametrosInimigo;
 
 typedef struct {
