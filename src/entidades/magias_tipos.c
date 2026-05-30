@@ -93,19 +93,33 @@ const int QTD_PARAMETROS_MAGIA =
 /* ----------------------------------------------------------------------------
  * 2. AUTO-FIRE
  * ----------------------------------------------------------------------------
- * A cada frame processa os 3 modificadores da profecia: cada mod dispara seu
- * elemento no inimigo mais próximo, com cadência própria. A mira e o spawn
- * (e o rider de status) ficam na engine — aqui só agendamos o tempo.
+ * A cada frame processa 4 slots de disparo: os 3 elementos dos mods da
+ * profecia + a magia inicial escolhida pelo jogador. Round-robin entre os
+ * slots; cada slot dispara seu elemento no inimigo mais próximo, com
+ * cadência própria.
  *
- * Os timers vivem em ej->motor_profecia.timer_disparo_mod[] (um por mod),
- * não mais em `static`: assim resetam junto com a run e os 3 mods coexistem.
- * Sem alvo, magias_disparar_elemento retorna false e o timer fica em 0 (não
- * acumula disparos — atira assim que um inimigo aparece).
+ * Por que 4 slots? A "Escolha da Magia Inicial" do GDD permite ao jogador
+ * adicionar um 4º elemento ao leque sem alterar a profecia. Se ele escolhe
+ * um elemento já presente em algum mod, dois slots disparam o mesmo
+ * elemento — maior cadência daquele elemento e mais chance de ativar os
+ * efeitos da profecia que combinam com ele (sinergia).
+ *
+ * Sem alvo, magias_disparar_elemento retorna false e o ciclo testa o próximo
+ * slot — atira assim que um inimigo aparece.
  * --------------------------------------------------------------------------*/
 
-/* Quanto o cooldown encolhe enquanto o efeito Reduz Cooldown da profecia
- * está ativo. Tunável: 1.0 = sem efeito, 0.5 = dobro de cadência. */
-static const float FATOR_REDUZ_COOLDOWN = 0.5f;
+#define AUTO_FIRE_SLOTS 4
+
+/* Devolve o elemento associado ao slot do auto-fire:
+ *   slots 0..2 = elementos dos mods da profecia
+ *   slot 3     = magia inicial escolhida (ou Arcano default se ainda nao foi escolhida)
+ */
+static Elemento elemento_do_slot(const EstadoJogo *ej, int slot) {
+    if (slot < 3) return ej->profecia.mods[slot].elemento;
+    if (ej->magia_inicial_definida) return ej->magia_inicial_escolhida;
+    return ELEMENTO_ARCANO;
+}
+
 
 void magias_tipos_processar_auto_fire(EstadoJogo *ej) {
     if (!ej->tiros_ativos) return;
@@ -115,24 +129,21 @@ void magias_tipos_processar_auto_fire(EstadoJogo *ej) {
 
     if (mp->cooldown_global_disparo > 0.0f) return;
 
-    for(int tentativa = 0; tentativa < 3; tentativa++){
-        int slot = mp->prox_slot_disparo;
-        Elemento e = ej->profecia.mods[slot].elemento;
-        
+    /* Tenta cada slot uma vez, em ordem, até achar um que dispare. */
+    for (int tentativa = 0; tentativa < AUTO_FIRE_SLOTS; tentativa++) {
+        int slot   = mp->prox_slot_disparo;
+        Elemento e = elemento_do_slot(ej, slot);
+
         if ((int)e < 0 || (int)e >= QTD_PARAMETROS_MAGIA) e = ELEMENTO_ARCANO;
-        
-        if (magias_disparar_elemento(ej, e)){
-            float intervalo = PARAMETROS_MAGIA[e].intervalo_disparo;
-            if (mp->reduz_cooldown_tempo > 0.0f) intervalo*=FATOR_REDUZ_COOLDOWN;
-            mp->cooldown_global_disparo = intervalo;
-            mp->prox_slot_disparo = (slot+1) % 3;
+
+        if (magias_disparar_elemento(ej, e)) {
+            mp->cooldown_global_disparo = PARAMETROS_MAGIA[e].intervalo_disparo;
+            mp->prox_slot_disparo = (slot + 1) % AUTO_FIRE_SLOTS;
             return;
         }
 
-        mp->prox_slot_disparo = (slot+1) % 3;
-
+        mp->prox_slot_disparo = (slot + 1) % AUTO_FIRE_SLOTS;
     }
 
     mp->cooldown_global_disparo = 0.0f;
-
 }

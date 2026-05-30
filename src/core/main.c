@@ -22,6 +22,7 @@
 
 #include "raylib.h"
 #include "tipos.h"
+#include "assets.h"   /* g_assets, assets_carregar/liberar, desenhar_sheet */
 
 /* Módulos implementados pelo Dev 1 (Arthur) */
 #include "jogador.h"
@@ -34,7 +35,6 @@
 #include "magias.h"
 #include "inimigos.h"
 #include "projeteis_inimigo.h"
-#include "obstaculos.h"
 #include "cronograma.h"
 #include "cartas.h"
 #include "dados.h"
@@ -42,6 +42,8 @@
 #include "hud.h"
 #include "config_video.h"   /* aplica resolução e fullscreen do save */
 #include "leaderboard.h"    /* top-10 de runs */
+#include "historico.h"      /* últimas 10 seeds jogadas */
+#include "magia_inicial.h"  /* sorteio + render da escolha de magia */
 
 #include <stdlib.h>   /* srand, rand, strtoul */
 #include <stdio.h>    /* snprintf */
@@ -59,13 +61,15 @@ static void jogo_atualizar(EstadoJogo *ej);
 static void jogo_desenhar(const EstadoJogo *ej);
 static void jogo_finalizar(EstadoJogo *ej);
 
-static void desenhar_grid_mundo(const Camera2D *camera);
+static void desenhar_chao_mundo(const Camera2D *camera);
 
 static void atualizar_menu(EstadoJogo *ej);
 static void atualizar_opcoes(EstadoJogo *ej);
 static void atualizar_leaderboard(EstadoJogo *ej);
+static void atualizar_historico(EstadoJogo *ej);
 static void atualizar_inserir_seed(EstadoJogo *ej);
 static void atualizar_revelacao_profecia(EstadoJogo *ej);
+static void atualizar_escolha_magia_inicial(EstadoJogo *ej);
 static void atualizar_combate(EstadoJogo *ej);
 static void atualizar_pausa(EstadoJogo *ej);
 static void atualizar_cartas_upgrade(EstadoJogo *ej);
@@ -99,6 +103,7 @@ static void jogo_resetar_run(EstadoJogo *ej);
 static int  s_menu_item                 = 0;     /* cursor do menu principal */
 static int  s_opcoes_item               = 0;     /* cursor da tela de opções */
 static bool s_leaderboard_aba_biomassa  = false; /* false=tempo, true=biomassa */
+static int  s_historico_cursor          = 0;     /* cursor da tela de histórico */
 static char s_seed_buffer[SEED_MAX_DIGITOS + 1] = {0}; /* buffer de input de seed */
 static int  s_seed_buffer_len           = 0;
 
@@ -107,7 +112,13 @@ static int  s_seed_buffer_len           = 0;
  * MAIN — PONTO DE ENTRADA
  * ========================================================================== */
 int main(void) {
-    /* 1. Inicialização do Raylib (abre a janela, prepara contexto gráfico) */
+    /* 1. Inicialização do Raylib (abre a janela, prepara contexto gráfico).
+     *
+     * FLAG_WINDOW_RESIZABLE: usuário pode arrastar a borda da janela ou
+     * maximizar. Combinado com o letterbox via RenderTexture2D (criado em
+     * jogo_inicializar), o conteúdo do jogo escala uniformemente mantendo
+     * aspect ratio — adiciona barras pretas em vez de cropar/distorcer. */
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(LARGURA_TELA, ALTURA_TELA, "AUGUR - Projeto PIF CESAR");
     SetTargetFPS(FPS_ALVO);
 
@@ -132,10 +143,36 @@ int main(void) {
     while (!WindowShouldClose() && ej.estado_atual != ESTADO_SAIR) {
         jogo_atualizar(&ej);
 
-        /* Bloco de desenho — tudo entre BeginDrawing e EndDrawing vai pra tela. */
-        BeginDrawing();
-            ClearBackground(BLACK);   /* limpa o frame anterior */
+        /* PASS 1 — desenha tudo num framebuffer fixo de LARGURA_TELA × ALTURA_TELA.
+         * Como o tamanho é fixo, todo o código de UI/HUD/câmera continua usando
+         * as constantes LARGURA_TELA/ALTURA_TELA sem precisar de ajuste por
+         * resolução. O letterbox real acontece no PASS 2. */
+        BeginTextureMode(ej.render_target);
+            ClearBackground(BLACK);
             jogo_desenhar(&ej);
+        EndTextureMode();
+
+        /* PASS 2 — copia o framebuffer pra janela atual, escalado de forma
+         * uniforme pra preservar aspect ratio. Letterbox = barras pretas quando
+         * a janela tem proporção diferente de 16:9 (ex: ultrawide, portrait).
+         *
+         * src.height NEGATIVO inverte Y: RenderTexture2D sai com origem na
+         * parte de baixo (convenção OpenGL); negativando, fica orientado igual
+         * ao resto do Raylib. */
+        BeginDrawing();
+            ClearBackground(BLACK);
+            int jw = GetScreenWidth();
+            int jh = GetScreenHeight();
+            float escala = fminf((float)jw / (float)LARGURA_TELA,
+                                 (float)jh / (float)ALTURA_TELA);
+            float dw = (float)LARGURA_TELA * escala;
+            float dh = (float)ALTURA_TELA  * escala;
+            float dx = ((float)jw - dw) * 0.5f;
+            float dy = ((float)jh - dh) * 0.5f;
+            Rectangle src = { 0, 0, (float)LARGURA_TELA, -(float)ALTURA_TELA };
+            Rectangle dst = { dx, dy, dw, dh };
+            DrawTexturePro(ej.render_target.texture, src, dst,
+                           (Vector2){ 0, 0 }, 0.0f, WHITE);
         EndDrawing();
     }
 
@@ -174,6 +211,16 @@ static void jogo_inicializar(EstadoJogo *ej) {
 
     ej->modo_debug   = false;
     ej->tiros_ativos = true;        /* Q desliga, Q liga */
+
+    /* Sprites e tileset da Luísa. assets_carregar precisa do contexto OpenGL,
+     * por isso vem DEPOIS de InitWindow (que rola no main, antes daqui). */
+    assets_carregar();
+
+    /* Render target fixo do letterbox: tudo renderiza aqui em LARGURA_TELA ×
+     * ALTURA_TELA e depois é escalado pra janela. POINT filter mantém o pixel
+     * art nítido mesmo em escalas não-inteiras (sem blur do bilinear default). */
+    ej->render_target = LoadRenderTexture(LARGURA_TELA, ALTURA_TELA);
+    SetTextureFilter(ej->render_target.texture, TEXTURE_FILTER_POINT);
 }
 
 
@@ -201,9 +248,11 @@ static void jogo_atualizar(EstadoJogo *ej) {
         case ESTADO_MENU:               atualizar_menu(ej);               break;
         case ESTADO_OPCOES:             atualizar_opcoes(ej);             break;
         case ESTADO_LEADERBOARD:        atualizar_leaderboard(ej);        break;
+        case ESTADO_HISTORICO:          atualizar_historico(ej);          break;
         case ESTADO_INSERIR_SEED:       atualizar_inserir_seed(ej);       break;
-        case ESTADO_REVELACAO_PROFECIA: atualizar_revelacao_profecia(ej); break;
-        case ESTADO_COMBATE:            atualizar_combate(ej);            break;
+        case ESTADO_REVELACAO_PROFECIA:    atualizar_revelacao_profecia(ej);    break;
+        case ESTADO_ESCOLHA_MAGIA_INICIAL: atualizar_escolha_magia_inicial(ej); break;
+        case ESTADO_COMBATE:               atualizar_combate(ej);               break;
         case ESTADO_PAUSA:              atualizar_pausa(ej);              break;
         case ESTADO_CARTAS_UPGRADE:     atualizar_cartas_upgrade(ej);     break;
         case ESTADO_GAME_OVER:          atualizar_game_over(ej);          break;
@@ -229,6 +278,7 @@ typedef enum {
     MENU_NOVO_JOGO,
     MENU_CARREGAR,
     MENU_INSERIR_SEED,
+    MENU_HISTORICO,
     MENU_LEADERBOARD,
     MENU_OPCOES,
     MENU_SAIR,
@@ -239,18 +289,22 @@ static const char *MENU_LABEL[MENU_TOTAL_ITENS] = {
     "Novo Jogo",
     "Carregar Jogo",
     "Inserir Seed",
+    "Historico",
     "Leaderboard",
     "Opcoes",
     "Sair",
 };
 
-/* Constrói a lista de itens visíveis no menu atual. Filtra "Carregar Jogo" se
- * não há save de seed. Retorna a quantidade de itens visíveis e preenche
- * `mapa[]` com os índices originais (ItemMenu) na ordem em que aparecem. */
+/* Constrói a lista de itens visíveis no menu atual. Filtra:
+ *   - "Carregar Jogo" se não há save de seed (1 clique pra última seed)
+ *   - "Histórico"     se o histórico está vazio
+ * Retorna a quantidade de itens visíveis e preenche `mapa[]` com os índices
+ * originais (ItemMenu) na ordem em que aparecem. */
 static int montar_menu_visivel(const EstadoJogo *ej, ItemMenu mapa[MENU_TOTAL_ITENS]) {
     int n = 0;
     for (int i = 0; i < MENU_TOTAL_ITENS; i++) {
-        if (i == MENU_CARREGAR && !ej->salvamento.tem_ultima_seed) continue;
+        if (i == MENU_CARREGAR  && !ej->salvamento.tem_ultima_seed) continue;
+        if (i == MENU_HISTORICO && !historico_tem_entradas(&ej->salvamento)) continue;
         mapa[n++] = (ItemMenu)i;
     }
     return n;
@@ -294,6 +348,10 @@ static void atualizar_menu(EstadoJogo *ej) {
                 s_seed_buffer_len = 0;
                 s_seed_buffer[0]  = '\0';
                 ej->proximo_estado = ESTADO_INSERIR_SEED;
+                break;
+            case MENU_HISTORICO:
+                s_historico_cursor = 0;
+                ej->proximo_estado = ESTADO_HISTORICO;
                 break;
             case MENU_LEADERBOARD:
                 ej->proximo_estado = ESTADO_LEADERBOARD;
@@ -363,6 +421,39 @@ static void atualizar_leaderboard(EstadoJogo *ej) {
 }
 
 
+/* --- Estado: HISTORICO ----------------------------------------------------
+ * Lista cronológica das últimas seeds (mais recente em [0]). UP/DOWN move o
+ * cursor; ENTER recarrega a seed selecionada (vai pra revelação da profecia);
+ * ESC volta pro menu. */
+static void atualizar_historico(EstadoJogo *ej) {
+    int n = ej->salvamento.historico_qtd;
+    if (n > HISTORICO_SEEDS_TAM) n = HISTORICO_SEEDS_TAM;
+
+    if (n > 0) {
+        /* Mantém cursor dentro do range mesmo após mudança de tamanho. */
+        if (s_historico_cursor >= n) s_historico_cursor = n - 1;
+        if (s_historico_cursor < 0)  s_historico_cursor = 0;
+
+        if (IsKeyPressed(KEY_UP)   || IsKeyPressed(KEY_W)) {
+            s_historico_cursor = (s_historico_cursor - 1 + n) % n;
+        }
+        if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) {
+            s_historico_cursor = (s_historico_cursor + 1) % n;
+        }
+
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+            unsigned int seed = ej->salvamento.historico[s_historico_cursor].seed;
+            iniciar_run_com_seed(ej, seed);
+            return;
+        }
+    }
+
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        ej->proximo_estado = ESTADO_MENU;
+    }
+}
+
+
 /* --- Estado: INSERIR_SEED -------------------------------------------------
  * Input numérico simples: GetCharPressed() em loop pra capturar dígitos.
  * BACKSPACE apaga, ENTER confirma, ESC cancela. */
@@ -397,31 +488,66 @@ static void atualizar_inserir_seed(EstadoJogo *ej) {
 
 
 /* Encapsula o que rola quando o jogador confirma uma seed (Novo Jogo,
- * Carregar Jogo ou Inserir Seed). Persiste a seed pra próximo "Carregar". */
+ * Carregar Jogo, Inserir Seed ou Histórico). Persiste a seed pra próximo
+ * "Carregar". A escolha de magia inicial é zerada pra forçar passagem pela
+ * tela ESCOLHA_MAGIA_INICIAL — o jogador re-escolhe a cada run. */
 static void iniciar_run_com_seed(EstadoJogo *ej, unsigned int seed) {
     profecia_gerar(&ej->profecia, seed);
-    obstaculos_gerar(ej, seed);
 
     ej->salvamento.ultima_seed     = seed;
     ej->salvamento.tem_ultima_seed = true;
     salvamento_salvar(&ej->salvamento);
 
+    ej->magia_inicial_definida  = false;
+    ej->magia_inicial_escolhida = ELEMENTO_ARCANO;
+
     ej->proximo_estado = ESTADO_REVELACAO_PROFECIA;
 }
 
 /* --- Estado: REVELACAO_PROFECIA -------------------------------------------
- * Mostra os 3 modificadores sorteados. Jogador lê e aperta ESPAÇO pra
- * começar o combate. */
+ * Mostra os 3 modificadores sorteados. Jogador lê e aperta ESPAÇO pra avançar
+ * pra escolha da magia inicial (GDD: "Você lê a Profecia antes de escolher
+ * sua magia inicial"). */
 static void atualizar_revelacao_profecia(EstadoJogo *ej) {
-    if (IsKeyPressed(KEY_SPACE)) {
-        /* Reseta o estado da run ANTES de iniciar a timeline. Em retries
-         * (game over → menu → nova run), sem isso o jogador continuaria com
-         * vida 0 e a lista de inimigos da run anterior — disparando game
-         * over no primeiro frame de combate. */
+    if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER)) {
+        /* Sorteia 3 opções de magia (com garantia de sinergia) e troca pra
+         * tela de escolha. O reset da run só acontece DEPOIS, quando o jogador
+         * confirma a magia escolhida — pra preservar profecia, mapa e save. */
+        magia_inicial_sortear_opcoes(ej);
+        ej->proximo_estado = ESTADO_ESCOLHA_MAGIA_INICIAL;
+    }
+}
+
+
+/* --- Estado: ESCOLHA_MAGIA_INICIAL ---------------------------------------
+ * 3 cards lado a lado. LEFT/RIGHT move o cursor (ou teclas 1/2/3 saltam
+ * direto pro card correspondente); ENTER confirma a escolha, reseta a run e
+ * entra no combate. ESC volta pra revelação da profecia. */
+static void atualizar_escolha_magia_inicial(EstadoJogo *ej) {
+    if (IsKeyPressed(KEY_LEFT)  || IsKeyPressed(KEY_A)) {
+        ej->opcao_magia_selecionada = (ej->opcao_magia_selecionada + 3 - 1) % 3;
+    }
+    if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) {
+        ej->opcao_magia_selecionada = (ej->opcao_magia_selecionada + 1) % 3;
+    }
+    if (IsKeyPressed(KEY_ONE))   ej->opcao_magia_selecionada = 0;
+    if (IsKeyPressed(KEY_TWO))   ej->opcao_magia_selecionada = 1;
+    if (IsKeyPressed(KEY_THREE)) ej->opcao_magia_selecionada = 2;
+
+    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+        /* Confirma: registra a magia escolhida (vai ser usada como 4º slot do
+         * auto-fire) e segue pro combate. */
+        ej->magia_inicial_escolhida =
+            ej->opcoes_magia[ej->opcao_magia_selecionada].elemento;
+        ej->magia_inicial_definida = true;
+
         jogo_resetar_run(ej);
         cronograma_inicializar(&ej->cronograma);
-        profecia_evento_inicio_run(ej);   /* dispara COND_INICIO_RUN */
         ej->proximo_estado = ESTADO_COMBATE;
+    }
+
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        ej->proximo_estado = ESTADO_REVELACAO_PROFECIA;
     }
 }
 
@@ -460,37 +586,41 @@ static void atualizar_combate(EstadoJogo *ej) {
      * tela, isso mantém o player sempre centralizado e o mundo rola em volta. */
     ej->camera.target = ej->jogador.posicao;
 
-    magias_atualizar(ej);                              /* engine Arthur */
-    inimigos_atualizar(ej);                            /* engine Arthur */
-    projeteis_inimigo_atualizar(ej);                   /* engine Arthur */
-    cronograma_atualizar(&ej->cronograma, ej);         /* engine Arthur */
+    magias_atualizar(ej);
+    inimigos_atualizar(ej);
+    projeteis_inimigo_atualizar(ej);
+    cronograma_atualizar(&ej->cronograma, ej);
 
-    colisao_verificar_tudo(ej);                        /* engine Arthur */
-
-    /* Obstáculos do mapa bloqueiam tanto o jogador quanto os inimigos.
-     * Resolvidos APÓS colisao_verificar_tudo pra ter a palavra final — assim
-     * inimigo não consegue empurrar o jogador pra dentro de uma árvore.
-     * Stubs por enquanto (porte do sandbox em outra sessão). */
-    obstaculos_resolver_jogador(ej);
-    obstaculos_resolver_inimigos(ej);
+    colisao_verificar_tudo(ej);
 
     if (ej->jogador.vida <= 0) {
         /* Registra a derrota no leaderboard de biomassa antes de transitar.
-         * top_tempo ignora (filtra por venceu=true internamente). */
+         * top_tempo ignora (filtra por venceu=true internamente). Também
+         * empurra a entrada pro histórico (índice 0 = mais recente). */
         leaderboard_registrar(&ej->salvamento,
                               ej->jogador.biomassa,
                               ej->cronograma.tempo_decorrido,
                               ej->profecia.seed,
                               false);
+        historico_registrar(&ej->salvamento,
+                            ej->profecia.seed,
+                            false,
+                            ej->cronograma.tempo_decorrido,
+                            ej->jogador.biomassa);
         salvamento_salvar(&ej->salvamento);
         ej->proximo_estado = ESTADO_GAME_OVER;
     } else if (ej->cronograma.vitoria) {
-        /* Registra a vitória nas duas tabelas. */
+        /* Registra a vitória nas duas tabelas + histórico. */
         leaderboard_registrar(&ej->salvamento,
                               ej->jogador.biomassa,
                               ej->cronograma.tempo_decorrido,
                               ej->profecia.seed,
                               true);
+        historico_registrar(&ej->salvamento,
+                            ej->profecia.seed,
+                            true,
+                            ej->cronograma.tempo_decorrido,
+                            ej->jogador.biomassa);
         salvamento_salvar(&ej->salvamento);
         ej->proximo_estado = ESTADO_VITORIA;
     } else if (cronograma_deve_abrir_cartas(&ej->cronograma)) {
@@ -592,14 +722,22 @@ static void jogo_desenhar(const EstadoJogo *ej) {
             leaderboard_desenhar(&ej->salvamento, s_leaderboard_aba_biomassa);
             break;
 
+        case ESTADO_HISTORICO:
+            historico_desenhar(&ej->salvamento, s_historico_cursor);
+            break;
+
         case ESTADO_INSERIR_SEED:
             desenhar_inserir_seed(ej);
             break;
 
         case ESTADO_REVELACAO_PROFECIA:
             profecia_desenhar(&ej->profecia);
-            DrawText("Pressione ESPACO para comecar a onda",
-                     LARGURA_TELA/2 - 260, ALTURA_TELA - 80, 22, GRAY);
+            DrawText("Pressione ESPACO para escolher sua magia inicial",
+                     LARGURA_TELA/2 - 320, ALTURA_TELA - 80, 22, GRAY);
+            break;
+
+        case ESTADO_ESCOLHA_MAGIA_INICIAL:
+            magia_inicial_desenhar(ej, ej->opcao_magia_selecionada);
             break;
 
         case ESTADO_COMBATE:
@@ -612,8 +750,7 @@ static void jogo_desenhar(const EstadoJogo *ej) {
              * desenhado (estado da última frame antes da pausa), e em cima
              * pintamos o overlay no fim deste switch. */
             BeginMode2D(ej->camera);
-                desenhar_grid_mundo(&ej->camera);
-                obstaculos_desenhar(ej);
+                desenhar_chao_mundo(&ej->camera);
                 magias_desenhar(ej);
                 inimigos_desenhar(ej);
                 projeteis_inimigo_desenhar(ej);
@@ -644,7 +781,7 @@ static void jogo_desenhar(const EstadoJogo *ej) {
         case ESTADO_CARTAS_UPGRADE:
             DrawText("ESCOLHA UM UPGRADE",
                      LARGURA_TELA/2 - 180, 80, 32, GOLD);
-            cartas_desenhar_ui(ej); /* stub */
+            cartas_desenhar_ui(ej);
             DrawText("(ESPACO pra continuar)",
                      LARGURA_TELA/2 - 150, ALTURA_TELA - 50, 18, GRAY);
             break;
@@ -698,10 +835,15 @@ static void jogo_desenhar(const EstadoJogo *ej) {
  * Chamada UMA VEZ no fim. Libera memória e salva progresso.
  * ========================================================================== */
 static void jogo_finalizar(EstadoJogo *ej) {
-    magias_liberar_tudo(ej);      /* stub — libera lista encadeada */
-    inimigos_liberar_tudo(ej);    /* stub — libera lista encadeada */
+    magias_liberar_tudo(ej);
+    inimigos_liberar_tudo(ej);
     projeteis_inimigo_liberar_tudo(ej);  /* libera lista encadeada */
-    salvamento_salvar(&ej->salvamento);  /* stub — grava arquivo */
+    salvamento_salvar(&ej->salvamento);
+
+    /* Libera o render target e as texturas das sprite sheets ANTES do
+     * CloseWindow (que destrói o contexto OpenGL). */
+    UnloadRenderTexture(ej->render_target);
+    assets_liberar();
 }
 
 
@@ -730,42 +872,97 @@ static void jogo_resetar_run(EstadoJogo *ej) {
 
 
 /* ============================================================================
- * GRID DE REFERÊNCIA DO MUNDO
+ * CHÃO DO MUNDO (TILESET + FALLBACK DE GRID)
  * --------------------------------------------------------------------------
- * Desenha linhas finas em intervalos fixos, mas SÓ NA ÁREA VISÍVEL da câmera.
- * Isso dá sensação de "mundo infinito" (as linhas aparecem rolando conforme o
- * jogador anda) sem precisar renderizar milhões de linhas — só as que cabem
- * na tela a cada frame.
+ * Tile-set da Luísa (10 tiles 64×64 seamless de GRAMA — pack v5). Pra cada
+ * célula visível, hash determinístico (x,y) escolhe qual tile vai ali —
+ * mesmo tile SEMPRE na mesma posição de mundo (não pisca a cada frame).
+ * Os pesos priorizam `plain`/`plain2` (35+22 = 57%) e usam os tiles
+ * "decorativos" (flores, trevos, pedrinha, terra, runa) só ocasionalmente,
+ * replicando os pesos sugeridos em assets/sprites/background/tiles.json.
+ *
+ * Se o tileset não carregou (PNG faltando), fallback pro grid antigo de
+ * linhas — garante que o jogo continua funcional mesmo sem assets.
  *
  * Como deve ser chamada dentro de BeginMode2D, usamos coord de mundo: a área
  * visível em mundo vai de (target - tela/2/zoom) até (target + tela/2/zoom).
  * ========================================================================== */
-static void desenhar_grid_mundo(const Camera2D *camera) {
-    const float ESPACAMENTO = 128.0f;     /* distância entre linhas, em pixels de mundo */
-    const Color COR_GRID    = (Color){ 30, 30, 45, 255 };  /* azul bem escuro, discreto */
+static void desenhar_chao_mundo(const Camera2D *camera) {
+    Texture2D tex = g_assets.tileset;
 
     /* Limites visíveis em coord de mundo. zoom divide porque zoom 2 mostra
      * metade do mundo, zoom 0.5 mostra o dobro. */
     float meia_largura = (LARGURA_TELA / 2.0f) / camera->zoom;
     float meia_altura  = (ALTURA_TELA  / 2.0f) / camera->zoom;
-
     float esquerda = camera->target.x - meia_largura;
     float direita  = camera->target.x + meia_largura;
     float topo     = camera->target.y - meia_altura;
     float baixo    = camera->target.y + meia_altura;
 
-    /* Alinha o início pra cair num múltiplo de ESPACAMENTO (efeito de grid
-     * "fixo no mundo", não colado na câmera). */
-    float primeiro_x = floorf(esquerda / ESPACAMENTO) * ESPACAMENTO;
-    float primeiro_y = floorf(topo     / ESPACAMENTO) * ESPACAMENTO;
-
-    /* Verticais */
-    for (float x = primeiro_x; x <= direita; x += ESPACAMENTO) {
-        DrawLineV((Vector2){ x, topo }, (Vector2){ x, baixo }, COR_GRID);
+    if (tex.id == 0) {
+        /* Fallback: grid de linhas (comportamento original do projeto). */
+        const float ESPACAMENTO = 128.0f;
+        const Color COR_GRID    = (Color){ 30, 30, 45, 255 };
+        float primeiro_x = floorf(esquerda / ESPACAMENTO) * ESPACAMENTO;
+        float primeiro_y = floorf(topo     / ESPACAMENTO) * ESPACAMENTO;
+        for (float x = primeiro_x; x <= direita; x += ESPACAMENTO)
+            DrawLineV((Vector2){ x, topo }, (Vector2){ x, baixo }, COR_GRID);
+        for (float y = primeiro_y; y <= baixo; y += ESPACAMENTO)
+            DrawLineV((Vector2){ esquerda, y }, (Vector2){ direita, y }, COR_GRID);
+        return;
     }
-    /* Horizontais */
-    for (float y = primeiro_y; y <= baixo; y += ESPACAMENTO) {
-        DrawLineV((Vector2){ esquerda, y }, (Vector2){ direita, y }, COR_GRID);
+
+    /* Tileset: 1 linha × N colunas (atlas). Lado de cada tile = altura da
+     * textura (todos os tiles são quadrados de mesmo tamanho). */
+    const int TILE_LADO = tex.height;
+    if (TILE_LADO <= 0) return;
+    int n_tiles = tex.width / TILE_LADO;
+    if (n_tiles < 1) n_tiles = 1;
+
+    /* Alinha o início pra cair num múltiplo de TILE_LADO (mosaico fixo no
+     * mundo, não na câmera). Margem de 1 tile pra evitar buracos nas bordas. */
+    int ix0 = (int)(floorf(esquerda / (float)TILE_LADO)) * TILE_LADO - TILE_LADO;
+    int iy0 = (int)(floorf(topo     / (float)TILE_LADO)) * TILE_LADO - TILE_LADO;
+    int ix1 = (int)(ceilf (direita  / (float)TILE_LADO)) * TILE_LADO + TILE_LADO;
+    int iy1 = (int)(ceilf (baixo    / (float)TILE_LADO)) * TILE_LADO + TILE_LADO;
+
+    for (int y = iy0; y < iy1; y += TILE_LADO) {
+        for (int x = ix0; x < ix1; x += TILE_LADO) {
+            /* Hash determinístico (x,y) → bucket. Os multiplicadores são
+             * primos clássicos usados em hash espacial (Teschner et al.). */
+            unsigned int h = ((unsigned int)x * 73856093u) ^
+                             ((unsigned int)y * 19349663u);
+            int bucket = (int)(h % 100u);
+
+            /* Pesos copiam o tiles.json do pack v5 (biome: grama):
+             *   0..34   → plain        (idx 0)
+             *   35..56  → plain2       (idx 1)
+             *   57..64  → patch_grass  (idx 2)
+             *   65..71  → flowers_y    (idx 3)
+             *   72..77  → flowers_w    (idx 4)
+             *   78..82  → flowers_b    (idx 5)
+             *   83..86  → small_rock   (idx 6)
+             *   87..90  → dirt_patch   (idx 7)
+             *   91..97  → clover       (idx 8)
+             *   98..99  → rune_glow    (idx 9)  — raro, mantém vibe mágica */
+            int idx;
+            if      (bucket < 35) idx = 0;
+            else if (bucket < 57) idx = 1 % n_tiles;
+            else if (bucket < 65) idx = 2 % n_tiles;
+            else if (bucket < 72) idx = 3 % n_tiles;
+            else if (bucket < 78) idx = 4 % n_tiles;
+            else if (bucket < 83) idx = 5 % n_tiles;
+            else if (bucket < 87) idx = 6 % n_tiles;
+            else if (bucket < 91) idx = 7 % n_tiles;
+            else if (bucket < 98) idx = 8 % n_tiles;
+            else                  idx = 9 % n_tiles;
+
+            Rectangle src = { (float)(idx * TILE_LADO), 0,
+                              (float)TILE_LADO, (float)TILE_LADO };
+            Rectangle dst = { (float)x, (float)y,
+                              (float)TILE_LADO, (float)TILE_LADO };
+            DrawTexturePro(tex, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
+        }
     }
 }
 

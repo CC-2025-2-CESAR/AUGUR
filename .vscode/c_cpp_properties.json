@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "AUGUR (MSYS2 UCRT64)",
+            "includePath": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/src/core",
+                "${workspaceFolder}/src/entidades",
+                "${workspaceFolder}/src/sistemas",
+                "${workspaceFolder}/src/interface",
+                "C:/msys64/ucrt64/include"
+            ],
+            "compilerPath": "C:/msys64/ucrt64/bin/gcc.exe",
+            "cStandard": "c11",
+            "intelliSenseMode": "windows-gcc-x64"
+        }
+    ],
+    "version": 4
+}

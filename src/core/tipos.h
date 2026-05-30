@@ -1,95 +1,85 @@
 /* ============================================================================
  * tipos.h - CONTRATO ENTRE OS DEVS
- * ============================================================================
- *
- * Este é o arquivo mais importante do projeto. Aqui ficam TODAS as structs,
- * enums e constantes que os 3 devs compartilham. Se você é o Dev 2 ou Dev 3
- * lendo isso: não escreva suas próprias versões das structs — use as daqui.
- *
- * POR QUE TUDO EM UM ARQUIVO SÓ?
- *   - Evita dependências circulares (um header que inclui outro que inclui...).
- *   - Qualquer módulo só precisa dar #include "tipos.h" pra ver tudo.
- *   - É o "contrato": quando esse arquivo está estável, os 3 podem codar em
- *     paralelo sem esperar ninguém.
- *
- * REGRA: Mudou alguma struct aqui? AVISE O GRUPO antes de commitar. Todo
- * mundo depende desse arquivo.
- *
- * ATUALIZACAO (engine Arthur): enums Condicao/Efeito reordenados conforme o
- * GDD; Inimigo/Magia ganharam campos de status; nova lista ProjetilInimigo;
- * novo MotorProfecia. Numeros de balanceamento NAO ficam aqui — vivem nos
- * arquivos de conteudo da Luisa (magias_comportamento.c, profecia_efeitos.c,
- * projeteis_inimigo_tipos.c). Quem indexar nomes em profecia.c atualiza junto.
+ * ----------------------------------------------------------------------------
+ * Reúne TODAS as structs, enums e constantes compartilhadas. Cada módulo só
+ * inclui "tipos.h" pra enxergar tudo, sem dependência circular. Números de
+ * balanceamento NÃO vivem aqui — ficam nos arquivos de conteúdo da Luísa
+ * (magias_comportamento.c, profecia_efeitos.c, etc.).
  * ========================================================================== */
 
 #ifndef TIPOS_H
 #define TIPOS_H
 
-#include "raylib.h"   /* Vector2, Rectangle, Color vêm dela */
-#include <stdbool.h>  /* bool, true, false */
-#include <stddef.h>   /* NULL — usado nas cabeças das listas encadeadas */
+#include "raylib.h"   /* Vector2, Rectangle, Color, Texture2D */
+#include <stdbool.h>
+#include <stddef.h>   /* NULL */
 
 /* ============================================================================
- * CONSTANTES GLOBAIS
- * --------------------------------------------------------------------------
- * Qualquer "número mágico" que vários arquivos usam vira #define aqui.
- * Assim muda em um lugar só.
+ * CONSTANTES GLOBAIS — números mágicos usados por vários arquivos.
  * ========================================================================== */
-#define LARGURA_TELA      1280   /* resolução default; pode ser sobrescrita pelo save */
-#define ALTURA_TELA       720    /* resolução default; pode ser sobrescrita pelo save */
+#define LARGURA_TELA      1280   /* resolução-base do render; pode ser sobrescrita pelo save */
+#define ALTURA_TELA       720
 #define FPS_ALVO          60
 
-/* Versão atual do formato do save. Se o save no disco trouxer outro valor,
- * salvamento_carregar zera tudo (evita lixo binário ao expandir DadosSalvos).
- * BUMP v2 -> v3: enums Condicao/Efeito encolheram. Saves antigos viram lixo
- * binário e são zerados automaticamente. */
+/* Versão do formato do save. Se o disco trouxer outro valor, salvamento_carregar
+ * zera tudo — evita lixo binário ao mudar o layout de DadosSalvos. */
 #define SAVE_VERSAO_ATUAL 3
 
-#define LEADERBOARD_TAM   10    /* top-10 nas duas tabelas (tempo + biomassa) */
-#define SEED_MAX_DIGITOS  10    /* unsigned int 32-bit cabe em 10 dígitos decimais */
+#define LEADERBOARD_TAM     10  /* top-10 nas duas tabelas (tempo + biomassa) */
+#define HISTORICO_SEEDS_TAM 10  /* últimas 10 seeds jogadas */
+#define SEED_MAX_DIGITOS    10  /* unsigned int 32-bit cabe em 10 dígitos decimais */
 
-#define MAX_PROJETEIS     256   /* teto de segurança pra lista de magias */
-#define MAX_PROJETEIS_INIMIGO 256 /* teto da lista de projéteis de inimigo */
-#define MAX_INIMIGOS      128   /* teto de segurança pra lista de inimigos */
-#define MAX_OBSTACULOS     40   /* teto de obstáculos do mapa por run */
-#define CARTAS_POR_ESCOLHA 3    /* quantas cartas aparecem entre ondas */
-#define MAX_DADOS_JOGADOR 2     /* quantos dados o jogador leva por run */
+#define MAX_PROJETEIS         256  /* teto da lista de magias do jogador */
+#define MAX_PROJETEIS_INIMIGO 256  /* teto da lista de projéteis de inimigo */
+#define MAX_INIMIGOS          128  /* teto da lista de inimigos */
+#define CARTAS_POR_ESCOLHA      3  /* quantas cartas aparecem por tela de upgrade */
+#define MAX_DADOS_JOGADOR        2  /* quantos dados o jogador leva por run */
+
+/* Animações e direções das sprite sheets (consumidos pelo módulo assets).
+ * Layout fixo das sheets: rows 0..3 = idle_{down,up,left,right}, 4..7 = walk_*,
+ * 8..11 = cast_*, 12 = hurt (omni), 13 = death (omni). Direção é o offset
+ * somado ao row-base em desenhar_sheet. */
+#define ANIM_IDLE   0
+#define ANIM_WALK   1
+#define ANIM_CAST   2
+#define ANIM_HURT   3
+#define ANIM_DEATH  4
+
+#define DIR_DOWN    0
+#define DIR_UP      1
+#define DIR_LEFT    2
+#define DIR_RIGHT   3
 
 /* ============================================================================
- * ENUMS — "Int com nome"
- * --------------------------------------------------------------------------
- * Enum = tipo que é internamente um int, mas com nomes legíveis. Em vez de
- * escrever "if (estado == 2)", você escreve "if (estado == COMBATE)".
- * Bem mais fácil de ler e difícil de errar.
+ * ENUMS — int com nome legível (em vez de "estado == 2", "estado == COMBATE").
+ * O sufixo _TOTAL no fim de um enum vira a contagem automaticamente.
  * ========================================================================== */
 
-/* Estados da máquina de estados do jogo.
- * Main.c tem um switch que decide o que rodar baseado nesse valor. */
+/* Estados da máquina de estados. main.c tem um switch que despacha por aqui. */
 typedef enum {
-    ESTADO_MENU,                /* tela inicial */
-    ESTADO_OPCOES,              /* config de vídeo: resolução, fullscreen */
-    ESTADO_LEADERBOARD,         /* tabelas top-10 (tempo e biomassa) */
-    ESTADO_INSERIR_SEED,        /* input de seed manual antes de uma run */
-    ESTADO_REVELACAO_PROFECIA,  /* mostra os 3 modificadores sorteados */
-    ESTADO_COMBATE,             /* timeline rolando, inimigos spawnando */
-    ESTADO_PAUSA,               /* ESC durante o combate; mundo congelado */
-    ESTADO_CARTAS_UPGRADE,      /* a cada minuto: jogador escolhe upgrade */
-    ESTADO_GAME_OVER,           /* morreu, mostra score e seed */
-    ESTADO_VITORIA,             /* matou o chefão final aos 5:00 */
-    ESTADO_SAIR                 /* sinaliza main pra fechar a janela */
+    ESTADO_MENU,                    /* tela inicial */
+    ESTADO_OPCOES,                  /* config de vídeo: resolução, fullscreen */
+    ESTADO_LEADERBOARD,             /* tabelas top-10 (tempo e biomassa) */
+    ESTADO_HISTORICO,               /* lista das últimas seeds jogadas */
+    ESTADO_INSERIR_SEED,            /* input de seed manual */
+    ESTADO_REVELACAO_PROFECIA,      /* mostra os 3 modificadores sorteados */
+    ESTADO_ESCOLHA_MAGIA_INICIAL,   /* depois da profecia: escolhe 1 de 3 magias */
+    ESTADO_COMBATE,                 /* timeline rolando, inimigos spawnando */
+    ESTADO_PAUSA,                   /* ESC no combate; mundo congelado */
+    ESTADO_CARTAS_UPGRADE,          /* a cada minuto: jogador escolhe upgrade */
+    ESTADO_GAME_OVER,               /* morreu; mostra score e seed */
+    ESTADO_VITORIA,                 /* derrotou o chefão final aos 5:00 */
+    ESTADO_SAIR                     /* sinaliza main pra fechar a janela */
 } EstadoAtual;
 
-/* Comportamento de IA de um inimigo.
- * Cada valor mapeia 1:1 a uma função em inimigos_tipos.c (a Luísa adiciona
- * casos novos no dispatch quando quiser uma IA inédita). */
+/* Comportamento de IA. Cada valor mapeia 1:1 a uma função em inimigos_tipos.c. */
 typedef enum {
-    IA_CHASE,                   /* anda direto na direção do jogador */
-    IA_KITER,                   /* mantém distância e atira projéteis */
+    IA_CHASE,                   /* anda direto no jogador */
+    IA_KITER,                   /* mantém distância e atira */
     IA_BOSS_FASES               /* chefão com fases por % de vida */
 } ComportamentoIA;
 
-/* 6 elementos do jogo. Ordem importa: é usada pra indexar tabelas de nomes.
- * ELEMENTO_TOTAL no final é truque comum: vira a contagem automaticamente. */
+/* 6 elementos. A ordem indexa as tabelas de nomes/stats. */
 typedef enum {
     ELEMENTO_FOGO,
     ELEMENTO_GELO,
@@ -100,7 +90,7 @@ typedef enum {
     ELEMENTO_TOTAL
 } Elemento;
 
-/* Tipos de inimigos. Dev 3 usa isso pra decidir IA e sprite. */
+/* Tipos de inimigo — decidem IA, stats e sprite. */
 typedef enum {
     INIMIGO_CORPO_A_CORPO,
     INIMIGO_A_DISTANCIA,
@@ -108,133 +98,113 @@ typedef enum {
     INIMIGO_CHEFE
 } TipoInimigo;
 
-/* Gatilhos das profecias. "Quando X acontece, dispare o efeito".
- * Engine de combate checa essas condições no loop. Pool reduzido a 4 pra
- * que cada profecia seja um puzzle legível — antes eram 10 condições com
- * estados/timers/debounces independentes que tornavam o efeito combinado
- * imprevisível. */
+/* Condições da profecia: "quando X acontece, dispara o efeito". Pool enxuto
+ * (4) pra cada profecia ser um puzzle legível. */
 typedef enum {
     COND_AO_MATAR,          /* inimigo morreu */
     COND_AO_RECEBER_DANO,   /* jogador tomou hit */
-    COND_AO_ACERTAR,        /* toda magia que acerta um inimigo */
+    COND_AO_ACERTAR,        /* magia acertou um inimigo */
     COND_A_CADA_N_SEG,      /* timer interno por mod: dispara a cada N segundos */
     COND_TOTAL
 } Condicao;
 
-/* Efeitos que podem ser disparados pelas profecias. Pool reduzido a 6 pra
- * cortar combos crípticos (DanoTriplo+SpawnaAliado+ReduzCooldown era confuso)
- * e os ganchos que dependiam do sistema de dados. Cada efeito agora tem
- * magnitude clara mostrada no texto da profecia. */
+/* Efeitos disparados pelas profecias. Pool enxuto (6); cada um tem magnitude
+ * explícita no texto da profecia (vive em profecia_efeitos.c). */
 typedef enum {
     EF_EXPLOSAO,            /* dano em área no contexto */
     EF_CURA,                /* recupera HP do jogador */
     EF_ESCUDO,              /* anula o próximo hit no jogador */
-    EF_IGNITE,              /* aplica DoT (ignite) no alvo */
+    EF_IGNITE,              /* aplica DoT no alvo */
     EF_CONGELAR,            /* congela inimigos no contexto */
     EF_DUPLICA_PROJETIL,    /* próximos N disparos saem duplicados */
     EF_TOTAL
 } Efeito;
 
-/* Tipos de obstáculo do mapa. Cada tipo desenha de um jeito (árvore tem
- * tronco + copa, pedra é um círculo cinza com volume) e tem range de raio
- * próprio. Luísa decide a lista final na implementação. */
-typedef enum {
-    OBSTACULO_ARVORE,
-    OBSTACULO_PEDRA,
-    OBSTACULO_TIPO_TOTAL
-} TipoObstaculo;
-
-/* Tipos de cartas de upgrade. Dev 2 popula e aplica. */
+/* Cartas de upgrade (Dev 2 popula e aplica). */
 typedef enum {
     CARTA_DANO_UP,
     CARTA_VIDA_UP,
     CARTA_VELOCIDADE_UP,
-    CARTA_MAIS_MAGIAS,
     CARTA_RECARGA_DADO,     /* devolve um dado pro jogador */
     CARTA_TOTAL
 } TipoCarta;
 
 
 /* ============================================================================
- * STRUCTS DO JOGO
- * --------------------------------------------------------------------------
- * Toda entidade importante tem sua própria struct. Passamos elas por ponteiro
- * nas funções (Jogador *j), o que é mais rápido que copiar e permite que a
- * função modifique os campos.
+ * STRUCTS DO JOGO — passadas por ponteiro (Jogador *j) pra evitar cópia e
+ * permitir que a função modifique o original.
  * ========================================================================== */
 
-/* -------------------- JOGADOR --------------------
- * `bonus_dano` é somado ao dano-base de toda magia no momento da criação do
- * projétil (a Luísa lê este campo em magias) — nunca itere a lista de
- * projéteis em voo pra aplicar bônus, eles morrem e o bônus se perde. */
+/* JOGADOR. `bonus_dano` é somado ao dano-base de toda magia no nascimento do
+ * projétil (lido em magias.c) — nunca itere projéteis em voo pra aplicar bônus. */
 typedef struct {
-    Vector2 posicao;        /* x, y na tela. Vector2 é do Raylib. */
-    Vector2 velocidade;     /* usado pra mover de forma suave */
-    float   raio;           /* pra colisão circular */
-    int     vida;           /* HP atual */
-    int     vida_maxima;    /* HP teto */
-    float   velocidade_movimento;  /* pixels por segundo */
-    int     biomassa;       /* moeda da meta-progressão */
-    int     bonus_dano;     /* somado no dano-base de toda magia disparada */
+    Vector2 posicao;
+    Vector2 velocidade;
+    float   raio;                   /* hitbox circular */
+    int     vida;
+    int     vida_maxima;
+    float   velocidade_movimento;   /* pixels por segundo */
+    int     biomassa;               /* pontuação da run */
+    int     bonus_dano;             /* somado no dano de toda magia disparada */
+
+    /* Visual (módulo assets): direção pra onde olha + animação atual. */
+    int     direcao_atual;          /* DIR_DOWN/UP/LEFT/RIGHT */
+    int     animacao_atual;         /* ANIM_IDLE/WALK/CAST/HURT/DEATH */
+    float   animacao_tempo;         /* s acumulados na animação */
+    float   hurt_tempo_restante;    /* >0: força HURT até zerar */
+    float   cast_tempo_restante;    /* >0: força CAST até zerar */
 } Jogador;
 
 
-/* -------------------- MAGIAS (LISTA ENCADEADA) --------------------
- * POR QUE LISTA ENCADEADA?
- *   - Projéteis nascem e morrem o tempo todo (spawn e free constante).
- *   - Quantidade varia: ora 2, ora 150.
- *   - Lista encadeada atende o REQUISITO OBRIGATÓRIO de PIF de listas.
- *   - Cada magia vira um "nó" alocado com malloc e liberado com free.
- * ---------------------------------------------------------------- */
-
-/* Dados de UMA magia/projétil individual. */
+/* MAGIAS — lista encadeada (nascem/morrem o tempo todo, quantidade variável).
+ * Cada nó é malloc/free; cumpre o requisito de listas encadeadas do PIF. */
 typedef struct {
     Vector2  posicao;
-    Vector2  velocidade;    /* direção e velocidade do projétil */
+    Vector2  velocidade;
     float    dano;
-    float    tempo_de_vida; /* em segundos; projétil some quando chega a 0 */
-    float    raio;          /* raio de colisão (preenchido a partir do elemento) */
+    float    tempo_de_vida;     /* s; o projétil some quando chega a 0 */
+    float    raio;              /* colisão (vem do elemento) */
     Elemento elemento;
-    bool     viva;          /* se false, será removida no próximo frame */
+    bool     viva;             /* false = removida no próximo frame */
     int      saltos_restantes; /* hops de chain do Relâmpago; 0 = sem chain */
-    bool     ja_acertou;    /* guarda contra reprocessar o mesmo projétil */
+    bool     ja_acertou;       /* guarda contra reprocessar o mesmo projétil */
 } Magia;
 
-/* Nó da lista encadeada. Cada nó carrega uma Magia e aponta pro próximo. */
 typedef struct MagiaNo {
     Magia           dados;
-    struct MagiaNo *proxima;  /* NULL = fim da lista */
+    struct MagiaNo *proxima;   /* NULL = fim da lista */
 } MagiaNo;
 
 
-/* -------------------- INIMIGOS (LISTA ENCADEADA) --------------------
- * Mesma lógica das magias: spawn/despawn constante, quantidade variável.
- * ------------------------------------------------------------------ */
+/* INIMIGOS — lista encadeada, mesma lógica das magias. */
 typedef struct {
     Vector2     posicao;
     Vector2     velocidade;
     float       raio;
     int         vida;
     int         vida_maxima;
-    float       dano;                /* dano que causa ao encostar */
+    float       dano;                /* dano ao encostar no jogador */
     float       velocidade_movimento;
     TipoInimigo tipo;
-    int         recompensa_biomassa; /* quantas biomassas dropa ao morrer */
+    int         recompensa_biomassa; /* biomassa que dropa ao morrer */
     bool        vivo;
 
-    /* --- Status aplicado por magias/combos/profecia ---
-     * A engine aplica (colisao.c) e expira (inimigos.c) estes campos. As
-     * MAGNITUDES vivem em magias_comportamento.c / profecia_efeitos.c. */
+    /* Status aplicado por magias/combos/profecia. A engine aplica (colisao.c) e
+     * expira (inimigos.c) estes campos; as magnitudes vivem no conteúdo da Luísa. */
     float congelado_tempo;           /* s; >0 zera a velocidade no update */
     float veneno_tempo;              /* s restantes do DoT */
     float veneno_dps;                /* dano/s do DoT (escala com stacks) */
-    int   veneno_stacks;             /* stacks ativos (teto tunável) */
-    float veneno_acumulado;          /* acumulador fracionário (não trunca int vida) */
+    int   veneno_stacks;
+    float veneno_acumulado;          /* acumulador fracionário (não trunca o int vida) */
     float marca_termica_tempo;       /* janela do combo Choque Térmico (marca de Fogo) */
     float proxima_hit_multiplicador; /* mult. da PRÓXIMA hit recebida (1.0 = normal) */
-    bool  aliado;                    /* spawnado por EF_SPAWNA_ALIADO: não fere o jogador */
-    float vida_aliado_restante;      /* s de vida de um aliado (0 = não expira) */
-    float timer_disparo;             /* cooldown do disparo de projétil deste inimigo */
+    float timer_disparo;             /* cooldown do tiro deste inimigo */
+
+    /* Visual (módulo assets). */
+    int   direcao_atual;
+    int   animacao_atual;
+    float animacao_tempo;
+    float morrendo_tempo;            /* >0: anim DEATH rolando antes do free */
 } Inimigo;
 
 typedef struct InimigoNo {
@@ -243,19 +213,17 @@ typedef struct InimigoNo {
 } InimigoNo;
 
 
-/* -------------------- PROJÉTEIS DE INIMIGO (LISTA ENCADEADA) --------------------
- * Tiro padrão (NÃO-elemental) que inimigos ranged e o chefão disparam no
- * jogador. Mesma mecânica de lista das magias (malloc/free). Os stats vivem
- * em projeteis_inimigo_tipos.c — a Luísa tuna por TipoInimigo (nerf/buff,
- * e futuramente pode torná-lo elemental sem mexer na engine). */
+/* PROJÉTEIS DE INIMIGO — lista encadeada. Tiro padrão que ranged e chefão
+ * disparam no jogador; stats vivem em projeteis_inimigo_tipos.c. */
 typedef struct {
     Vector2 posicao;
     Vector2 velocidade;
     float   dano;
-    float   tempo_de_vida;   /* em segundos; some quando chega a 0 */
+    float   tempo_de_vida;
     float   raio;
     Color   cor;
-    bool    vivo;            /* se false, removido no próximo frame */
+    bool    vivo;
+    int     tipo_origem;     /* TipoInimigo que disparou — escolhe o sprite */
 } ProjetilInimigo;
 
 typedef struct ProjetilInimigoNo {
@@ -264,21 +232,15 @@ typedef struct ProjetilInimigoNo {
 } ProjetilInimigoNo;
 
 
-/* -------------------- TABELAS DE PARÂMETROS (DEV 3) --------------------
- * Estas duas structs são usadas em tabelas const indexadas por TipoInimigo
- * e Elemento, respectivamente. A Luísa preenche essas tabelas em
- * inimigos_tipos.c e magias_tipos.c — é o ponto único onde stats vivem.
- *
- * Quem usa: a engine (inimigos.c, magias.c) lê desses arrays na hora de
- * spawnar, mover, desenhar e disparar. Mudou um valor na tabela? Próximo
- * spawn já pega o novo. Ideal pra balanceamento.
- * ----------------------------------------------------------------------- */
+/* TABELAS DE PARÂMETROS (Dev 3) — arrays const indexados por TipoInimigo e
+ * Elemento. A engine lê desses arrays na hora de spawnar/disparar; mudou um
+ * valor, o próximo spawn já pega. Ideal pra balanceamento. */
 typedef struct {
     int             vida_base;
     float           dano;
     float           velocidade_movimento;
     float           raio;                /* colisão */
-    float           raio_visual;         /* desenho (pode != colisão) */
+    float           raio_visual;         /* desenho (pode diferir da colisão) */
     Color           cor;
     int             recompensa_biomassa;
     ComportamentoIA comportamento;
@@ -289,66 +251,42 @@ typedef struct {
     float velocidade_projetil;
     float tempo_de_vida;
     float raio_projetil;
-    float intervalo_disparo;             /* segundos entre disparos automáticos */
+    float intervalo_disparo;             /* s entre disparos automáticos */
     Color cor;
 } ParametrosMagia;
 
 
-/* -------------------- TIMELINE (CRONOGRAMA + EVENTOS) --------------------
- * O jogo NÃO tem "ondas finitas" no estilo arena clássico. A run inteira é
- * uma timeline contínua de 5 minutos, modelada à la Vampire Survivors:
- *
- *   - O Cronograma guarda o tempo total decorrido desde o início da run.
- *   - A tabela EVENTOS_CRONOGRAMA[] (em src/sistemas/cronograma_eventos.c)
- *     descreve, declarativamente, "do minuto X ao minuto Y, spawnar inimigos
- *     do tipo T a cada Z segundos". Múltiplos eventos podem estar ativos
- *     ao mesmo tempo (e.g., melee + ranged simultâneos a partir dos 2:00).
- *   - Aos 5:00, a engine spawna 1 chefão e para os outros eventos. Quando
- *     o chefão morre, o jogo transiciona pra ESTADO_VITORIA.
- *   - A cada minuto inteiro (1:00, 2:00, …), a tela de cartas abre e o
- *     tempo congela; o jogador escolhe um upgrade e a run continua.
- *
- * A Luísa edita SÓ a tabela EVENTOS_CRONOGRAMA[]. A engine cuida do resto.
- * ----------------------------------------------------------------------- */
-
-/* Um evento agendado: "do tempo_inicio ao tempo_fim, spawnar tipo a cada X
- * segundos". A engine faz uma cópia interna ANTES de mexer em timer_interno
- * e ativo, então a tabela declarativa em cronograma_eventos.c pode ser const. */
+/* TIMELINE (cronograma + eventos). A run é uma timeline contínua de 5 min
+ * (estilo Vampire Survivors), não ondas finitas. A tabela EVENTOS_CRONOGRAMA[]
+ * (cronograma_eventos.c) descreve "do tempo X ao Y, spawna tipo T a cada Z s".
+ * Aos 5:00 a engine spawna o chefão e para o resto. A Luísa edita só a tabela. */
 typedef struct {
-    float        tempo_inicio_seg;   /* quando o evento começa a spawnar */
+    float        tempo_inicio_seg;   /* quando começa a spawnar */
     float        tempo_fim_seg;      /* quando para; INFINITY = nunca */
-    TipoInimigo  tipo;               /* qual inimigo é spawnado */
-    float        intervalo_spawn;    /* segundos entre cada spawn */
+    TipoInimigo  tipo;
+    float        intervalo_spawn;    /* s entre cada spawn */
     float        timer_interno;      /* acumulador (gerenciado pela engine) */
-    bool         ativo;              /* engine liga/desliga conforme o tempo */
+    bool         ativo;
 } EventoCronograma;
 
-#define MAX_EVENTOS_CRONOGRAMA 32    /* teto de eventos copiados pra runtime */
+#define MAX_EVENTOS_CRONOGRAMA 32
 
 typedef struct {
-    float            tempo_decorrido;        /* segundos desde o início da run */
+    float            tempo_decorrido;        /* s desde o início da run */
     float            tempo_proxima_carta;    /* dispara cartas neste valor */
     bool             cartas_pendentes;       /* engine setou, main consome */
-    bool             chefao_spawnado;        /* já criou o chefão final? */
+    bool             chefao_spawnado;
     bool             esperando_chefao_morrer;
-    bool             vitoria;                /* chefão derrotado */
+    bool             vitoria;
     EventoCronograma eventos[MAX_EVENTOS_CRONOGRAMA];
     int              qtd_eventos;
 } Cronograma;
 
 
-/* -------------------- PROFECIA (O CORAÇÃO DO JOGO) --------------------
- * Uma profecia é composta por 3 modificadores independentes. Cada um
- * combina [Elemento] + [Condição] + [Efeito], por exemplo:
- *   "Fogo | Ao matar -> Explosão"
- *
- * Com 6 elementos × 10 condições × 12 efeitos = 720 combinações por modificador.
- * 3 modificadores = 720^3 = ~370 milhões de combinações teóricas.
- *
- * Como é gerado proceduralmente a partir de uma seed (unsigned int), duas
- * runs com a mesma seed produzem a mesma profecia — reprodutível pra debug
- * e pra compartilhar runs interessantes com amigos.
- * -------------------------------------------------------------------- */
+/* PROFECIA — o coração do jogo. 3 modificadores [Elemento]+[Condição]+[Efeito].
+ * Gerada deterministicamente da seed: 6 elementos × 4 condições × 6 efeitos =
+ * 144 combinações por mod (~3 milhões na profecia inteira). Mesma seed = mesma
+ * profecia, então dá pra reproduzir e compartilhar runs. */
 typedef struct {
     Elemento elemento;
     Condicao condicao;
@@ -356,180 +294,154 @@ typedef struct {
 } Modificador;
 
 typedef struct {
-    Modificador mods[3];       /* sempre 3 modificadores por profecia */
-    unsigned int seed;         /* guardada pra debug e replay */
+    Modificador mods[3];
+    unsigned int seed;
 } Profecia;
 
 
-/* -------------------- MOTOR DE PROFECIA (RUNTIME) --------------------
- * Estado vivo que o motor (profecia.c) usa pra avaliar Condições e aplicar
- * Efeitos durante o combate. Zerado a cada run (jogo_resetar_run). As
- * MAGNITUDES e LIMIARES ficam em profecia_efeitos.c — a Luísa tuna lá.
- * -------------------------------------------------------------------- */
+/* MOTOR DE PROFECIA — estado vivo que profecia.c usa pra avaliar Condições e
+ * aplicar Efeitos durante o combate. Zerado a cada run (jogo_resetar_run). */
 typedef struct {
-    float timer_cond[3];          /* COND_A_CADA_10S: acumulador por mod */
-    float cooldown_global_disparo;/* cooldown de único entre diferentes disparos (round robin) */
-    int   prox_slot_disparo;      /*indice 0-2 do proximo mod a disparar*/
-    bool  cond_vida_armada[3];    /* debounce de COND_VIDA_ABAIXO_X por mod */
-    int   combo_contador;         /* kills dentro da janela atual */
-    float combo_janela_restante;  /* s restantes da janela de combo */
-    bool  primeira_hit_consumida; /* COND_PRIMEIRA_HIT dispara só 1x por run */
-    bool  inicio_run_disparado;   /* COND_INICIO_RUN dispara só 1x por run */
-    float dano_triplo_proxima;    /* >1 => próxima hit do jogador multiplica */
-    int   duplica_proximos;       /* nº de disparos a duplicar (EF_DUPLICA_PROJETIL) */
-    float escudo_ativo;           /* >0 => próximo hit no jogador é anulado */
-    float roubo_vida_tempo;       /* >0 => dano em inimigo cura o jogador */
-    float reduz_cooldown_tempo;   /* >0 => cooldown de disparo reduzido */
-    bool  em_aplicar_efeito;      /* guard de reentrância no dispatch */
-    int   pending_dado_drop;      /* gancho Sofia/dados: dados a dropar (no-op) */
-    int   pending_bonus_roll;     /* gancho Sofia/dados: +N no próximo roll (no-op) */
+    float timer_cond[3];           /* COND_A_CADA_N_SEG: acumulador por mod */
+    float cooldown_global_disparo; /* cooldown único entre disparos (round-robin) */
+    int   prox_slot_disparo;       /* índice 0-2 do próximo mod a disparar */
+    int   duplica_proximos;        /* disparos a duplicar (EF_DUPLICA_PROJETIL) */
+    float escudo_ativo;            /* >0 => próximo hit no jogador é anulado (EF_ESCUDO) */
+    bool  em_aplicar_efeito;       /* guard de reentrância no dispatch */
 } MotorProfecia;
 
 
-/* -------------------- OBSTÁCULOS DO MAPA (DEV 3) --------------------
- * Objetos fixos no mundo (árvores, pedras...). Bloqueiam jogador e inimigos
- * (push-out) mas não causam dano. Layout deve ser gerado UMA vez no início
- * da run, determinístico a partir da seed da profecia (mesma seed = mesmo
- * mapa, pra debug/replay).
- *
- * Como são fixos durante a run (não spawnam nem somem em tempo de combate),
- * usamos um ARRAY simples no EstadoJogo com qtd_obstaculos marcando quantos
- * slots estão preenchidos. Não precisa de lista encadeada aqui.
- * ----------------------------------------------------------------- */
-typedef struct {
-    Vector2       posicao;
-    float         raio;
-    TipoObstaculo tipo;
-} Obstaculo;
-
-
-/* -------------------- CARTAS E DADOS (DEV 2) --------------------
- * Cartas de upgrade que aparecem entre ondas. Dados são rolados pra
- * modificar o valor das cartas.
- * --------------------------------------------------------------- */
+/* CARTAS E DADOS (Dev 2). Cartas aparecem entre minutos; dados rolam pra
+ * modificar o valor de uma carta. */
 typedef struct {
     TipoCarta tipo;
-    int       raridade;          /* 0=comum, 1=rara, 2=lendária */
+    int       raridade;          /* 0=comum .. 5=lendária */
     int       valor;             /* ex.: +10 de dano */
     char      nome[64];
     char      descricao[256];
 } Carta;
 
 typedef struct {
-    int faces;                   /* d6 = 6, d20 = 20 */
-    int ultimo_resultado;        /* pra mostrar na tela após rolar */
+    int faces;                   /* d6 = 6 */
+    int ultimo_resultado;        /* mostrado após rolar; 0 = ainda carregado */
 } Dado;
 
 
-/* -------------------- ENTRADA DE LEADERBOARD --------------------
- * Uma linha do top-10. Há duas tabelas em DadosSalvos: top_tempo (só vitórias,
- * ordenado por tempo crescente) e top_biomassa (vitórias e derrotas, ordenado
- * por pontuação decrescente). Slot livre = ocupado=false.
- * ---------------------------------------------------------------- */
+/* Uma linha do top-10. Slot livre = ocupado=false. */
 typedef struct {
     int          pontuacao;         /* biomassa coletada na run */
-    float        tempo_segundos;    /* duração da run; só tem sentido se venceu=true */
-    unsigned int seed;              /* seed da profecia, pra replay */
-    bool         venceu;            /* true se chegou ao chefão e derrotou */
-    bool         ocupado;           /* false = slot vazio */
+    float        tempo_segundos;    /* duração; só vale se venceu=true */
+    unsigned int seed;
+    bool         venceu;
+    bool         ocupado;
 } EntradaLeaderboard;
 
 
-/* -------------------- DADOS SALVOS (DEV 2) --------------------
- * Persistem entre runs. Sofia escreve via fwrite em saves/biomassa.dat
- * (REQUISITO OBRIGATÓRIO de PIF: arquivo). Layout serializado é literalmente
- * o memory layout da struct — qualquer campo novo entra de graça no save.
- *
- * VERSÃO: se o save no disco trouxer outro versao_save, salvamento_carregar
- * zera tudo. Garante que upgrades da struct não corrompam runs antigas.
- * ------------------------------------------------------------- */
+/* Uma linha do histórico de seeds (índice 0 = mais recente). Guarda toda run
+ * que chegou ao fim, pra recarregar uma seed antiga sem precisar anotar. */
 typedef struct {
-    int  versao_save;               /* SAVE_VERSAO_ATUAL; gate de compatibilidade */
+    unsigned int seed;
+    bool         venceu;
+    float        tempo_segundos;
+    int          pontuacao;
+    bool         ocupado;
+} EntradaHistorico;
 
-    /* --- progressão (campos originais da Sofia) --- */
-    int  biomassa_total;            /* moeda acumulada em todas as runs */
+
+/* DADOS SALVOS (Dev 2) — persistem entre runs. Gravados inteiros via fwrite em
+ * saves/biomassa.dat (requisito de arquivo do PIF). Campo versao_save é o gate
+ * de compatibilidade: layout diferente no disco => zera tudo no carregamento. */
+typedef struct {
+    int  versao_save;
+
+    /* Progressão (campos originais da Sofia). */
+    int  biomassa_total;
     int  runs_completadas;
-    int  melhor_onda;               /* maior onda alcançada até hoje */
+    int  melhor_onda;
     int  profecias_desbloqueadas[20]; /* MATRIZ — requisito obrigatório */
     char nome_jogador[32];
 
-    /* --- config de vídeo --- */
-    int  largura_tela;              /* 0 = usar LARGURA_TELA default */
+    /* Config de vídeo. */
+    int  largura_tela;              /* 0 = usar o default */
     int  altura_tela;
     bool fullscreen;
 
-    /* --- "Carregar Jogo" (replay da última seed) --- */
+    /* "Carregar Jogo" (replay da última seed). */
     unsigned int ultima_seed;
     bool         tem_ultima_seed;
 
-    /* --- leaderboards --- */
+    /* Leaderboards. */
     EntradaLeaderboard top_tempo[LEADERBOARD_TAM];     /* só vitórias; tempo crescente */
-    EntradaLeaderboard top_biomassa[LEADERBOARD_TAM];  /* vit. e derrotas; pontuação decrescente */
+    EntradaLeaderboard top_biomassa[LEADERBOARD_TAM];  /* todas; pontuação decrescente */
+
+    /* Histórico de seeds jogadas (mais recente em [0]). */
+    EntradaHistorico historico[HISTORICO_SEEDS_TAM];
+    int              historico_qtd;
 } DadosSalvos;
 
 
+/* Uma das 3 opções da tela de escolha de magia inicial. A escolhida vira o 4º
+ * elemento do auto-fire. Pelo menos 1 das 3 é sinergética (bate com um mod). */
+typedef struct {
+    Elemento  elemento;
+    int       raridade;             /* 0..5, mesma curva das cartas */
+    bool      sinergetica;          /* elemento bate com algum mod da profecia */
+    char      nome[24];             /* "Bola de Fogo", "Lanca Gelada"... */
+} OpcaoMagiaInicial;
+
+
 /* ============================================================================
- * ESTADO DO JOGO (STRUCT RAIZ)
- * --------------------------------------------------------------------------
- * Essa é a struct mãe. Ela carrega absolutamente tudo do estado atual.
- * Passamos ponteiro dela (EstadoJogo *ej) pra todas as funções do jogo.
- *
- * POR QUE USAR ESSA STRUCT RAIZ?
- *   - Zero variáveis globais espalhadas pelo código.
- *   - Toda função vê o contexto inteiro e pode modificar o que precisa.
- *   - Fácil de salvar/carregar: só serializa essa struct.
- *   - Fica óbvio quem depende de quê.
+ * ESTADO DO JOGO (STRUCT RAIZ) — carrega todo o estado atual. Passada por
+ * ponteiro (EstadoJogo *ej) pra quase toda função: zero variável global, e
+ * qualquer função enxerga o contexto inteiro.
  * ========================================================================== */
 typedef struct {
-    /* --- Máquina de estados --- */
+    /* Máquina de estados. proximo_estado é o buffer de transição (a troca
+     * efetiva acontece no fim do frame, evitando rodar meio-update no estado
+     * errado). */
     EstadoAtual estado_atual;
-    EstadoAtual proximo_estado;   /* buffer de transição pra trocar entre frames */
+    EstadoAtual proximo_estado;
 
-    /* --- Entidades principais --- */
-    Jogador      jogador;
-    Profecia     profecia;
-    MotorProfecia motor_profecia;    /* runtime do motor de efeitos da profecia */
-    Cronograma   cronograma;         /* timeline da run (substituiu Onda) */
-    DadosSalvos  salvamento;
+    /* Entidades e sistemas principais. */
+    Jogador       jogador;
+    Profecia      profecia;
+    MotorProfecia motor_profecia;
+    Cronograma    cronograma;
+    DadosSalvos   salvamento;
 
-    /* --- Camera 2D ---
-     * O jogador vive em um mundo infinito (sem bordas). A câmera segue o
-     * jogador: camera.target = jogador.posicao. offset é o ponto da tela onde
-     * o target aparece (centro da tela = player centralizado). Tudo que for
-     * desenhado dentro de BeginMode2D(camera)/EndMode2D é interpretado em
-     * coordenadas de mundo; o que fica fora é coord de tela (HUD, menus). */
+    /* Câmera 2D: segue o jogador (target = jogador.posicao) com offset no centro
+     * da tela. O que é desenhado dentro de BeginMode2D/EndMode2D usa coord de
+     * mundo; fora disso é coord de tela (HUD, menus). */
     Camera2D  camera;
 
-    /* --- Listas encadeadas (cabeças) ---
-     * Começam em NULL = lista vazia. Dev 3 adiciona nós com malloc. */
-    MagiaNo   *magias_cabeca;
-    InimigoNo *inimigos_cabeca;
+    /* Cabeças das listas encadeadas (NULL = vazia). */
+    MagiaNo           *magias_cabeca;
+    InimigoNo         *inimigos_cabeca;
     ProjetilInimigoNo *projeteis_inimigo_cabeca;
 
-    /* --- Obstáculos do mapa ---
-     * Array fixo populado uma vez no início da run (determinístico a partir
-     * da seed da profecia). qtd_obstaculos é quantos slots estão realmente
-     * preenchidos. Bloqueiam o jogador e os inimigos. */
-    Obstaculo obstaculos[MAX_OBSTACULOS];
-    int       qtd_obstaculos;
-
-    /* --- Opções de upgrade mostradas no estado CARTAS_UPGRADE ---
-     * MATRIZ de 3 cartas (requisito obrigatório). */
+    /* MATRIZ de 3 cartas mostradas no estado CARTAS_UPGRADE. */
     Carta     escolhas_upgrade[CARTAS_POR_ESCOLHA];
 
-    /* --- Dados que o jogador escolheu levar nessa run --- */
+    /* Tela ESCOLHA_MAGIA_INICIAL. */
+    OpcaoMagiaInicial opcoes_magia[3];
+    int               opcao_magia_selecionada;   /* 0..2 */
+    Elemento          magia_inicial_escolhida;   /* aplicada no auto-fire (4º slot) */
+    bool              magia_inicial_definida;
+
+    /* Dados que o jogador leva nesta run. */
     Dado      dados_ativos[MAX_DADOS_JOGADOR];
 
-    /* --- Tempo e frames --- */
-    float     delta_tempo;        /* segundos desde o último frame */
-    float     tempo_total;        /* tempo acumulado da run */
+    /* Tempo e frames. */
+    float     delta_tempo;        /* s desde o último frame */
+    float     tempo_total;
     int       contador_frames;
 
-    /* --- Debug --- */
-    bool      modo_debug;         /* F1 alterna; mostra FPS e info extra */
+    bool      modo_debug;         /* F1 alterna; mostra FPS */
+    bool      tiros_ativos;       /* Q alterna; pausa o auto-fire */
 
-    /* --- Toggles do jogador durante o combate --- */
-    bool      tiros_ativos;       /* Q alterna; quando false, auto-fire pausa */
+    /* Letterbox: tudo é renderizado neste framebuffer fixo (LARGURA×ALTURA) e
+     * depois copiado escalado pra janela, mantendo o aspect ratio (nunca cropa). */
+    RenderTexture2D render_target;
 } EstadoJogo;
 
 #endif /* TIPOS_H */

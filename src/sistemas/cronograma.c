@@ -1,22 +1,10 @@
 /* ============================================================================
- * cronograma.c - ENGINE DA TIMELINE
- * ============================================================================
- *
- * IMPLEMENTAÇÃO PURA — sem dados de balanceamento. A tabela declarativa de
- * eventos vive em cronograma_eventos.c (responsabilidade da Luísa).
- *
- * FLUXO POR FRAME:
- *   1. Avança tempo_decorrido.
- *   2. Pra cada evento da tabela: se está dentro da janela [inicio, fim) e
- *      não foi marcado como inativo, decrementa timer_interno; quando zera,
- *      pede pra inimigos.c spawnar 1 inimigo do tipo do evento numa posição
- *      aleatória ao redor da câmera.
- *   3. Quando tempo >= 5:00, spawna 1 chefão e desativa todos os outros
- *      eventos (a luta vira só contra o chefão).
- *   4. Quando o chefão morre (lista de inimigos vazia + esperando_chefao_morrer),
- *      seta vitoria = true. O main vê e troca o estado.
- *   5. Quando tempo cruza um múltiplo de CRONOGRAMA_INTERVALO_CARTAS_SEG,
- *      seta cartas_pendentes = true (o main consome quando trata o estado).
+ * cronograma.c - ENGINE DA TIMELINE (5 min)
+ * ----------------------------------------------------------------------------
+ * Engine pura — a tabela de eventos vive em cronograma_eventos.c (Luísa). Por
+ * frame: avança o tempo, spawna inimigos pelos eventos ativos (na borda da
+ * tela), aos 5:00 limpa a arena e spawna o chefão, sinaliza vitória quando ele
+ * morre, e marca cartas_pendentes a cada minuto cheio (o main consome).
  * ============================================================================ */
 
 #include "cronograma.h"

@@ -137,15 +137,9 @@ void leaderboard_desenhar(const DadosSalvos *ds, bool aba_biomassa) {
 
     const EntradaLeaderboard *tabela = aba_biomassa ? ds->top_biomassa : ds->top_tempo;
 
-    int linhas_mostradas = 0;
     for (int i = 0; i < LEADERBOARD_TAM; i++) {
         desenhar_linha(i, &tabela[i], x, y, aba_biomassa);
         y += 30;
-        linhas_mostradas++;
-    }
-
-    if (linhas_mostradas == 0) {
-        DrawText("(vazio)", x, y, 20, DARKGRAY);
     }
 
     DrawText("ESC para voltar ao menu",

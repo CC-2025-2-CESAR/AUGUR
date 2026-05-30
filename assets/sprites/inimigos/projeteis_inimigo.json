@@ -1,0 +1,14 @@
+{
+  "size": [
+    32,
+    32
+  ],
+  "orientation": "+X (engine rotaciona pela velocidade)",
+  "indices": {
+    "corpo_a_corpo": 0,
+    "vidente": 1,
+    "elite": 2,
+    "oraculo": 3
+  },
+  "note": "Tiles vazios em corpo_a_corpo e elite sao placeholders \u2014 esses inimigos nao atiram (pode_atirar=false em projeteis_inimigo_tipos.c)."
+}

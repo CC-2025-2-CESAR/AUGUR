@@ -1,295 +1,189 @@
 # AUGUR
 
-Bullet Hell Roguelite · Projeto PIF 2026.1 · CESAR School
+**Bullet Hell Roguelite · Projeto PIF 2026.1 · CESAR School**
 
-## Sobre o jogo
+## A proposta
 
-Em AUGUR, cada run começa com uma **Profecia** — três modificadores `[Elemento] + [Condição] + [Efeito]` gerados proceduralmente que definem as regras daquela run. Magias disparam automaticamente enquanto você esquiva de projéteis inimigos. A run é uma timeline de **5 minutos** estilo Vampire Survivors: a cada minuto cheio você escolhe cartas de upgrade, e aos 5:00 surge o chefão final. Derrotá-lo encerra a run com vitória; ao morrer, sua **pontuação** (biomassa acumulada matando inimigos) aparece na tela final.
+**AUGUR é um bullet hell roguelite onde cada partida é um quebra-cabeça diferente.**
+No começo de toda run, uma **Profecia** é sorteada — três regras no formato
+`[Elemento] + [Condição] + [Efeito]` (ex.: *"Fogo · Ao matar → Explosão em área"*)
+que definem como aquele mundo funciona. Suas magias disparam **automaticamente**;
+você foca em se mover e desviar dos projéteis inimigos.
 
-Cada run tem uma **seed** visível na tela. Como a profecia é gerada de forma determinística a partir da seed, você pode compartilhar runs marcantes com amigos: mesma seed = mesma profecia = mesmo puzzle inicial. É o ponto de partida pra replays, debug e desafios entre jogadores.
+A ideia central é que **não existe uma build ótima fixa**: como a Profecia muda a
+cada run, a estratégia que venceu ontem pode ser inútil hoje. Quem entende melhor
+os sistemas monta a build certa mais rápido — esse conhecimento é a verdadeira
+progressão do jogo.
 
-### Sistemas implementados
+Cada run dura **5 minutos** (uma timeline contínua estilo *Vampire Survivors*):
+a cada minuto cheio você escolhe uma **carta de upgrade**, e aos 5:00 aparece o
+**chefão final**. Derrotá-lo é vitória; morrer encerra a run mostrando sua
+**pontuação** (a biomassa acumulada matando inimigos). Toda run tem uma **seed**
+visível — mesma seed gera a mesma profecia, então dá pra compartilhar e re-jogar
+partidas marcantes.
 
-- **Profecia ativa em combate.** 6 Elementos × 10 Condições × 12 Efeitos (conforme o GDD). O motor avalia as 3 condições durante a run e dispara os efeitos; magnitudes e limiares são 100% tunáveis em `profecia_efeitos.c`.
-- **Poderes por elemento.** Cada magia tem um comportamento de status: Gelo congela, Relâmpago salta entre inimigos próximos, Veneno aplica DoT acumulativo, Fogo/Arcano/Sombra são projéteis puros. Tudo tunável em `magias_comportamento.c`.
-- **Combos emergentes.** Fogo → Gelo = **Choque Térmico** (stun + próxima hit amplificada); Arcano em inimigo envenenado = dano dobrado.
-- **Inimigos atiram.** Ranged e chefão disparam um projétil padrão (não-elemental), tunável por tipo em `projeteis_inimigo_tipos.c`.
-- **Pontuação.** A biomassa coletada vira a pontuação final mostrada no game over / vitória.
-- **Menu inicial completo.** Novo Jogo, Carregar Jogo (replay da última seed), Inserir Seed manual, Leaderboard, Opções e Sair. Navegação com setas + ENTER.
-- **Leaderboard top-10.** Duas tabelas: por tempo (só vitórias, mais rápido primeiro) e por biomassa (vitórias e derrotas, maior pontuação primeiro). Persiste entre execuções; TAB alterna abas.
-- **Opções de vídeo.** 3 resoluções (1280×720, 1600×900, 1920×1080) e toggle de fullscreen. As preferências persistem no save.
-- **Seed manual.** Tela "Inserir Seed" aceita um número decimal e abre uma run determinística — basta compartilhar a seed pra um amigo jogar a mesma profecia.
-- **Skip de evento (F3).** Durante o combate, F3 pula pro próximo minuto cheio (próxima tela de cartas). Útil pra testar builds rápido. Se já estiver no último minuto, vai direto pro chefão.
+> Referências de tom: *Vampire Survivors* (loop de sobrevivência), *Balatro* (peso
+> de cada decisão), *Hades* (identidade da meta-progressão). O design completo está
+> no GDD (`augur_gdd.pdf`).
 
-> A meta-progressão (desbloqueios persistentes entre runs) está **fora de escopo na versão atual** — a biomassa é usada como pontuação da run, não como moeda persistente. O design completo de referência (loop, Profecias, Dados, magias, meta-progressão) está no GDD: **`augur_gdd.pdf`**.
+## Como uma run acontece
 
-## Equipe
-
-| Dev | Responsabilidade | Módulos |
-|-----|------------------|---------|
-| Arthur (Dev 1) | Engine & Core | `main.c`, `tipos.h`, `jogador`, `profecia` (+ motor), `colisao`, engine de `inimigos`/`magias`/`cronograma`/`projeteis_inimigo`, `combos`, `obstaculos` |
-| Sofia (Dev 2) | Sistemas de Jogo | `cartas`, `dados`, `salvamento`, `hud` |
-| Luísa (Dev 3) | Conteúdo / Balanceamento | `inimigos_tipos`, `magias_tipos`, `magias_comportamento`, `projeteis_inimigo_tipos`, `profecia_efeitos`, `cronograma_eventos` |
-
-## Documentação
-
-Tudo em [`docs/`](docs/) — veja o [índice](docs/README.md) pra navegação rápida. Os guias principais:
-
-| Guia | Quando usar |
-|---|---|
-| [TUTORIAL_AMBIENTE.md](docs/TUTORIAL_AMBIENTE.md) | Setup do ambiente (MSYS2/Linux), instalação do Raylib e make. Leitura obrigatória no primeiro clone. |
-| [TUTORIAL_SPRITES.md](docs/TUTORIAL_SPRITES.md) | Como adicionar sprites PNG no lugar das primitivas (`DrawCircleV`). Inclui o módulo `assets` sugerido e exemplos completos. |
-| [dicionario.md](docs/dicionario.md) | Glossário de termos de jogos (AoE, DoT, kiting…) e da arquitetura do AUGUR (motor de profecia, riders, push-out…). |
-
-## Requisitos
-
-- GCC 15+ via MSYS2 UCRT64
-- Raylib 5.5
-- GNU Make 4+
-
-## Instalação rápida do ambiente
-
-Abra o terminal **MSYS2 UCRT64** e rode:
-
-```bash
-pacman -Syu
-pacman -S mingw-w64-ucrt-x86_64-raylib
-pacman -S mingw-w64-ucrt-x86_64-make
+```
+Menu → (seed) → Revelação da Profecia → Escolha da Magia Inicial → Combate
+                                                                      │
+                        a cada 1 min ──► Carta de Upgrade ──► volta ao Combate
+                                                                      │
+                                          aos 5:00 ──► Chefão ──► Vitória / Game Over
 ```
 
-Valide:
+1. **Profecia revelada** — leia as 3 regras da run.
+2. **Magia inicial** — escolha 1 de 3 magias sorteadas (some um 4º elemento ao
+   seu leque; pelo menos uma das opções tem sinergia com a profecia).
+3. **Combate** — magias miram e atiram sozinhas; você desvia e posiciona.
+4. **Cartas** — a cada minuto, 3 cartas; pode gastar um **dado** pra rolar (melhorar
+   ou piorar) o valor de uma carta antes de escolher.
+5. **Chefão** aos 5:00, com fases por % de vida.
+
+## Sistemas implementados
+
+- **Profecia ativa em combate** — 6 Elementos × 4 Condições × 6 Efeitos (~3 milhões
+  de combinações). O motor avalia as condições durante a run e dispara os efeitos,
+  com a magnitude exibida no texto da revelação. Tunável em `profecia_efeitos.c`.
+- **Poderes por elemento** — Gelo congela, Relâmpago salta entre inimigos, Veneno
+  aplica DoT acumulativo, Fogo/Arcano/Sombra são projéteis puros.
+- **Combos emergentes** — Fogo→Gelo = **Choque Térmico** (stun + próxima hit
+  amplificada); Arcano em inimigo envenenado = dano dobrado.
+- **Inimigos atiram** — ranged e chefão disparam um projétil padrão, tunável por tipo.
+- **Escolha de magia inicial** e **histórico das últimas 10 seeds jogadas** (pra
+  recarregar uma run boa sem precisar anotar a seed).
+- **Cartas de upgrade + sistema de dados** — risco gerenciado: rolar pode melhorar
+  ou piorar a carta.
+- **Menu completo** — Novo Jogo, Carregar (última seed), Inserir Seed, Histórico,
+  Leaderboard, Opções, Sair.
+- **Leaderboard top-10** — por tempo (só vitórias) e por biomassa (todas), persistido
+  em arquivo.
+- **Sprites + tileset** — sheets direcionais (idle/walk/cast em 4 direções + hurt +
+  death) pro jogador e inimigos; magias e tiros rotacionados pela velocidade; chão
+  em tilemap de grama determinístico. Se um PNG faltar, cai em primitiva sem quebrar.
+- **Vídeo adaptável** — 3 resoluções + fullscreen; a janela pode ser redimensionada
+  e o **letterbox** (`RenderTexture2D`) escala tudo sem cropar nem distorcer.
+- **Save em arquivo** — `saves/biomassa.dat` guarda config, última seed, leaderboards
+  e histórico, com validação de versão.
+
+> A **meta-progressão** (desbloqueios permanentes entre runs) está **fora de escopo**
+> nesta versão — a biomassa é a pontuação da run, não moeda persistente.
+
+## Equipe e obrigações
+
+O projeto é dividido por responsabilidade pra cada um trabalhar no seu módulo sem
+travar os outros. O contrato comum é o `tipos.h`.
+
+| Dev | Frente | Pelo que é responsável |
+|-----|--------|------------------------|
+| **Arthur** (Dev 1) | Engine & Core | Game loop e máquina de estados (`main.c`), contrato de tipos (`tipos.h`), colisão, **motor de profecia**, engines de inimigos/magias/cronograma/projéteis de inimigo, combos, render de sprites (`assets`), letterbox, leaderboard, config de vídeo, histórico, escolha de magia inicial e a integração geral. |
+| **Sofia** (Dev 2) | Sistemas de jogo | **Cartas** de upgrade, **sistema de dados**, **salvamento** em arquivo e a **HUD** de combate (vida, tempo, biomassa, aviso de chefão). |
+| **Luísa** (Dev 3) | Conteúdo, balanceamento & arte | Tabelas de stats e **IA** dos inimigos, stats/auto-fire das magias e seus status, tiro de inimigo, magnitudes da profecia/combos, **timeline de spawns**, e todas as **sprite sheets + tileset**. |
+
+> **Engine vs. conteúdo.** Tudo que termina em `_tipos.c`, `_eventos.c`,
+> `_comportamento.c` ou `_efeitos.c` é conteúdo/balanceamento (Luísa): tabelas `const`
+> que a engine (Arthur) só consome. Pra balancear ou criar algo novo, edita-se só
+> essas tabelas — nenhum número de balanceamento mora na engine.
+
+## Compilar e rodar
+
+Requisitos: um compilador C (**GCC** ou **Clang**), **Raylib 5.5** e **GNU Make**.
+O Makefile detecta o sistema (**Windows / Linux / macOS**) e linka as libs certas
+do Raylib automaticamente.
+
+Instalar o Raylib + make:
 
 ```bash
-pkg-config --cflags --libs raylib
-gcc --version
-mingw32-make --version
+# Windows (terminal MSYS2 UCRT64)
+pacman -S mingw-w64-ucrt-x86_64-raylib mingw-w64-ucrt-x86_64-make
+
+# Linux (Debian/Ubuntu) — se o pacote do apt for antigo, compile o Raylib 5.5 da fonte
+sudo apt install build-essential libraylib-dev
+
+# macOS (Homebrew)
+brew install raylib make
 ```
 
-## Como compilar e rodar
-
-No PowerShell:
-
-```powershell
-mingw32-make
-.\augur.exe
-mingw32-make clean
-```
-
-No terminal MSYS2:
+Compilar e jogar:
 
 ```bash
-make
-make run
+make          # compila (gera augur / augur.exe)
+make run      # compila e roda
 make clean
 ```
 
+> No Windows, fora do MSYS2 (PowerShell/CMD), use **`mingw32-make`** no lugar de `make`.
+
 ## Estrutura de pastas
 
-O código é organizado em módulos por responsabilidade. Cada subpasta de `src/` agrupa arquivos com propósito relacionado, deixando claro pra cada dev onde encostar.
+Cada subpasta de `src/` agrupa um propósito. O Makefile descobre os `.c`
+automaticamente e adiciona cada subpasta ao `-I`, então os `#include` são por nome
+simples (`#include "tipos.h"`).
 
 ```text
-Jogo-PIF/
-|-- src/
-|   |-- core/                          <- motor: loop, contrato (tipos.h), colisão
-|   |   |-- main.c                     <- game loop e máquina de estados
-|   |   |-- tipos.h                    <- contrato entre devs (todas as structs)
-|   |   `-- colisao.c/.h               <- colisão + dano único, riders e combos
-|   |
-|   |-- entidades/                     <- coisas que vivem no mundo
-|   |   |-- jogador.c/.h               <- movimento, HP e direção
-|   |   |-- inimigos.c/.h              <- ENGINE de inimigos + status (Arthur)
-|   |   |-- inimigos_tipos.c/.h        <- TABELA + IA por tipo (Luísa)
-|   |   |-- magias.c/.h                <- ENGINE de projéteis (Arthur)
-|   |   |-- magias_tipos.c/.h          <- TABELA por elemento + auto-fire (Luísa)
-|   |   |-- magias_comportamento.c/.h  <- RIDER de status por elemento (Luísa)
-|   |   |-- projeteis_inimigo.c/.h     <- ENGINE do tiro de inimigo (Arthur)
-|   |   |-- projeteis_inimigo_tipos.c/.h <- TABELA do tiro por tipo (Luísa)
-|   |   `-- obstaculos.c/.h            <- árvores e pedras (Arthur)
-|   |
-|   |-- sistemas/                      <- regras e lógica do jogo
-|   |   |-- profecia.c/.h              <- gerador + MOTOR de efeitos (Arthur)
-|   |   |-- profecia_efeitos.c/.h      <- magnitudes/limiares + combos (Luísa)
-|   |   |-- combos.c/.h                <- ENGINE dos combos emergentes (Arthur)
-|   |   |-- cronograma.c/.h            <- ENGINE da timeline 5min (Arthur)
-|   |   |-- cronograma_eventos.c/.h    <- TABELA de eventos da timeline (Luísa)
-|   |   |-- cartas.c/.h                <- sistema de upgrade (Sofia)
-|   |   |-- dados.c/.h                 <- sistema de dados (Sofia)
-|   |   |-- salvamento.c/.h            <- save/load em arquivo (Sofia)
-|   |   |-- config_video.c/.h          <- resolução e fullscreen (Arthur)
-|   |   `-- leaderboard.c/.h           <- top-10 de runs (Arthur)
-|   |
-|   `-- interface/                     <- UI e HUD
-|       `-- hud.c/.h                   <- HUD durante combate (Sofia)
-|
-|-- assets/                            <- sprites, sons e fontes
-|-- build/                             <- arquivos .o gerados pelo make
-|-- saves/                             <- progresso gerado em runtime
-|-- docs/                              <- guias internos pro grupo
-|   |-- README.md                      <- indice dos docs
-|   |-- TUTORIAL_AMBIENTE.md           <- setup do MSYS2/Linux + Makefile do zero
-|   |-- TUTORIAL_SPRITES.md            <- como adicionar sprites no lugar das primitivas
-|   |-- dicionario.md                  <- glossario de termos de jogos e arquitetura
-|   `-- issue-hud-cronograma.md        <- task tecnica pra Sofia (HUD VS-like)
-|-- Makefile
-`-- README.md
+src/
+├── core/         loop + contrato + colisão + carga de sprites
+│   ├── main.c            game loop, máquina de estados, letterbox
+│   ├── tipos.h           contrato entre os devs (todas as structs/enums)
+│   ├── colisao.c/.h      colisão, dano único, riders e combos
+│   └── assets.c/.h       carga e desenho das sprite sheets
+├── entidades/    o que vive no mundo (ENGINE = Arthur, TABELA = Luísa)
+│   ├── jogador.c/.h
+│   ├── inimigos.c/.h            + inimigos_tipos.c/.h
+│   ├── magias.c/.h              + magias_tipos.c/.h + magias_comportamento.c/.h
+│   └── projeteis_inimigo.c/.h   + projeteis_inimigo_tipos.c/.h
+├── sistemas/     regras do jogo
+│   ├── profecia.c/.h            + profecia_efeitos.c/.h   (gerador + motor)
+│   ├── combos.c/.h
+│   ├── cronograma.c/.h          + cronograma_eventos.c/.h (timeline 5 min)
+│   ├── cartas.c/.h · dados.c/.h · salvamento.c/.h         (Sofia)
+│   ├── historico.c/.h · magia_inicial.c/.h
+│   └── config_video.c/.h · leaderboard.c/.h
+└── interface/
+    └── hud.c/.h                  HUD de combate (Sofia)
+
+assets/sprites/   sheets direcionais + tileset (Luísa)
+docs/             guias internos (ambiente, sprites, dicionário)
+saves/            progresso gerado em runtime
 ```
-
-> **Engine vs. conteúdo.** A regra é: tudo que termina em `_tipos.c`, `_eventos.c`, `_comportamento.c` ou `_efeitos.c` é **conteúdo/balanceamento da Luísa** — tabelas de stats, IA, timeline de spawns, status por elemento, magnitudes da profecia e dos combos. A engine (Arthur) só consome essas tabelas. Pra balancear ou criar coisa nova, a Luísa edita apenas esses arquivos de conteúdo — nenhum número de balanceamento mora na engine.
-
-> Os `#include` continuam sendo por nome simples (ex.: `#include "tipos.h"`) porque o Makefile adiciona cada subpasta de `src/` ao `-I` do compilador. Você não precisa escrever `#include "core/tipos.h"`.
-
-## Como adicionar conteúdo (guia da Luísa)
-
-Toda mudança de balanceamento ou conteúdo novo acontece em **três arquivos**:
-
-| O que você quer | Onde editar |
-|-----------------|-------------|
-| Stats e IA de inimigos | `src/entidades/inimigos_tipos.c` |
-| Stats e auto-fire de magias | `src/entidades/magias_tipos.c` |
-| Status por elemento (congela/chain/veneno) | `src/entidades/magias_comportamento.c` |
-| Tiro de inimigo (dano, alcance, ligar/desligar por tipo) | `src/entidades/projeteis_inimigo_tipos.c` |
-| Magnitudes/limiares da profecia e dos combos | `src/sistemas/profecia_efeitos.c` |
-| Quando spawnar o quê (timeline de 5 min) | `src/sistemas/cronograma_eventos.c` |
-
-A engine (`inimigos.c`, `magias.c`, `cronograma.c`, `projeteis_inimigo.c`, `profecia.c`, `combos.c`) lê dessas tabelas. Você não precisa mexer em alocação, lista encadeada, push-out, render, motor de profecia ou detecção de combo — tudo isso já está pronto.
-
-### Adicionar um inimigo novo (ex.: elite à distância)
-
-1. Em `src/core/tipos.h`, no enum `TipoInimigo`, adicione um valor novo:
-   ```c
-   typedef enum {
-       INIMIGO_CORPO_A_CORPO,
-       INIMIGO_A_DISTANCIA,
-       INIMIGO_ELITE,
-       INIMIGO_ELITE_DISTANCIA,   /* novo */
-       INIMIGO_CHEFE
-   } TipoInimigo;
-   ```
-2. Em `src/entidades/inimigos_tipos.c`, adicione uma linha em `PARAMETROS_INIMIGO[]` na **mesma ordem do enum**:
-   ```c
-   {
-       .vida_base = 70, .dano = 16, .velocidade_movimento = 80.0f,
-       .raio = 14.0f, .raio_visual = 14.0f,
-       .cor = (Color){80, 200, 220, 255},
-       .recompensa_biomassa = 30,
-       .comportamento = IA_KITER,    /* reaproveita a IA do ranged base */
-   },
-   ```
-3. Pronto. Pra fazer ele aparecer numa fase, adicione uma linha em `cronograma_eventos.c`.
-
-### Mexer na timeline da run
-
-Cada linha em `EVENTOS_CRONOGRAMA[]` é uma fase declarativa: "do tempo X ao tempo Y, spawnar tipo T a cada Z segundos". Tempos em segundos. A run dura 5 min: o chefão é spawnado pela engine automaticamente aos **5:00** (`CRONOGRAMA_DURACAO_SEG`) e todos os outros eventos param — não precisa cadastrar o chefão. Mantenha o último `tempo_fim` em `5.0f * 60.0f` (300s).
-
-```c
-{ 240.0f, 5.0f * 60.0f, INIMIGO_ELITE_DISTANCIA, 12.0f, 0.0f, false },
-```
-
-### Mexer numa magia existente
-
-Em `magias_tipos.c`, ache a linha do elemento (ordem do enum) e ajuste dano, cooldown ou cor. Pra mudar o jeito que o jogador atira (ex.: spread em leque), edite a função `magias_tipos_processar_auto_fire`.
-
-### Adicionar uma IA inédita
-
-1. Em `tipos.h`, novo valor no enum `ComportamentoIA`.
-2. Em `inimigos_tipos.c`, crie uma função `static void ia_minha_ia(Inimigo *i, EstadoJogo *ej)` que escreve em `i->velocidade`.
-3. Adicione um `case` em `inimigos_tipos_executar_ia`.
-
-A função recebe `EstadoJogo *ej`, então tem acesso à lista inteira de inimigos via `ej->inimigos_cabeca` — isso permite **IAs coordenadas** (cada inimigo decide olhando o que os outros estão fazendo). Exemplo já no projeto: `ia_kiter` itera a lista pra contar quantos kiters vivos existem e descobrir seu índice ordenado por ângulo polar, daí cada um ocupa um slot único num círculo orbital cercando o jogador. Outras coordenações possíveis: cargas em V, parede defendendo o boss, divisão de flancos entre dois grupos. Custo: O(N²) por frame se cada inimigo iterar a lista — aceitável até umas dezenas de inimigos.
-
-Pra IAs **isoladas** com leve variedade entre indivíduos sem precisar de campo `id`: use `hash_pointer_para_unitario(i)` (já em `inimigos_tipos.c`) — devolve um valor estável em `[-1, 1]` derivado do endereço do nó, que serve de "personalidade" do inimigo (offset angular, fase de timer, jitter de velocidade).
-
-## Convenções de código C
-
-### Header (`.h`) é o "cartão de visita" do módulo
-
-Cada módulo tem um par `nome.c` + `nome.h`:
-
-- **`.h`** — DECLARA o que o módulo expõe pra fora: protótipos das funções públicas, structs, enums, constantes. Nada de implementação aqui.
-- **`.c`** — IMPLEMENTA o que o `.h` declarou. É onde o código de verdade vive.
-
-Por que separar?
-
-- Outros arquivos só precisam incluir o `.h` pra usar as funções — sem ver os detalhes da implementação.
-- O compilador valida o tipo dos argumentos na hora da chamada, evitando bugs.
-- Recompila mais rápido: mudar só o `.c` não obriga recompilar quem usa o módulo.
-
-### `#include`-guard (`#ifndef`/`#define`/`#endif`)
-
-Todo header começa com este padrão:
-
-```c
-#ifndef NOME_H
-#define NOME_H
-
-/* ... conteúdo do header ... */
-
-#endif /* NOME_H */
-```
-
-Garante que o conteúdo do header só seja lido **uma única vez** pelo compilador, mesmo que vários arquivos o incluam (direta ou indiretamente). Sem isso, daria erro de "redefinição" de tipos.
-
-### `EstadoJogo *ej` em todo lugar
-
-A struct raiz `EstadoJogo` (definida em `tipos.h`) carrega TODO o estado da run: jogador, listas de inimigos/magias/projéteis de inimigo, profecia, motor de profecia, cronograma, etc. Quase toda função do projeto recebe um `EstadoJogo *ej` por parâmetro. Vantagens:
-
-- Zero variáveis globais espalhadas pelo código.
-- Qualquer função vê o contexto inteiro.
-- Fica óbvio quem depende de quê (basta olhar o `ej->...` no corpo da função).
-
-## Menu e fluxo de telas
-
-O jogo começa no menu principal. Cada item leva a um caminho:
-
-```text
-MENU ┬─ Novo Jogo ─────────► REVELACAO ─► COMBATE ─┬─► CARTAS_UPGRADE ─► COMBATE ...
-     │                                              ├─► GAME_OVER ──────► MENU
-     │                                              └─► VITORIA ────────► MENU
-     ├─ Carregar Jogo ─────► REVELACAO  (replay da ultima seed jogada)
-     ├─ Inserir Seed ──────► INSERIR_SEED ─► REVELACAO  (com a seed digitada)
-     ├─ Leaderboard ───────► LEADERBOARD ──► MENU
-     ├─ Opcoes ────────────► OPCOES ───────► MENU
-     └─ Sair
-```
-
-- **Novo Jogo:** sorteia uma seed aleatória.
-- **Carregar Jogo:** só aparece se já houve pelo menos uma run; reutiliza a última seed.
-- **Inserir Seed:** input numérico (0 a 4.294.967.295). Mesma seed → mesma profecia → mesmo mapa.
-- **Leaderboard:** TAB alterna entre tabela "Tempo" (só vitórias) e "Biomassa" (todas as runs).
-- **Opções:** lista de resoluções + toggle de fullscreen. As mudanças se aplicam na hora e persistem no save.
 
 ## Controles
 
-### No menu e nas telas
-| Tecla | Ação |
-|-------|------|
-| ↑ / ↓ ou W / S | Navegar entre itens |
-| ENTER ou ESPAÇO | Confirmar / Selecionar |
-| TAB | (Leaderboard) alterna entre Tempo e Biomassa |
-| BACKSPACE | (Inserir Seed) apagar último dígito |
-| ESC | Voltar pra tela anterior |
+| Contexto | Tecla | Ação |
+|----------|-------|------|
+| Menus | ↑/↓ ou W/S · ENTER/ESPAÇO · ESC | navegar · confirmar · voltar |
+| Leaderboard | TAB | alterna Tempo / Biomassa |
+| Inserir Seed | 0–9 · BACKSPACE · ENTER | digitar · apagar · confirmar |
+| Combate | WASD / setas | mover |
+| Combate | Q · ESC · F1 | liga/desliga tiros · pausa · debug |
+| Combate | **F3** | pula pra próxima tela de cartas (skip de tempo) |
+| Cartas | 1/2/3 · R + 1/2/3 | escolher carta · rolar dado na carta |
 
-### Durante o combate
-| Tecla | Ação |
-|-------|------|
-| WASD ou setinhas | Mover jogador |
-| Q | Liga/desliga tiros automáticos |
-| ESC | Pausar / Retomar |
-| F1 | Alternar modo debug |
-| **F3** | **Pular pra próxima tela de cartas (skip de tempo)** |
-| ENTER | (Pausa / Game Over / Vitória) confirmar / voltar ao menu |
-| 1 / 2 / 3 | (Cartas de Upgrade) escolher carta |
-| R + 1/2/3 | (Cartas de Upgrade) rolar dado na carta |
+A janela pode ser **redimensionada/maximizada** (o letterbox escala sem cropar) e a
+resolução fixa fica em **Opções**.
 
-## Conceitos obrigatórios de PIF implementados
+## Conceitos obrigatórios de PIF
 
 | Conceito | Onde |
 |----------|------|
-| Structs | `tipos.h` — `Jogador`, `Inimigo`, `Magia`, `ProjetilInimigo`, `Profecia`, `MotorProfecia`, `Cronograma`, `EstadoJogo`, `DadosSalvos`, `EntradaLeaderboard`, `Carta`, `Dado`, `Obstaculo`, `EventoCronograma`, `ParametrosInimigo`, `ParametrosMagia` |
-| Ponteiros | `EstadoJogo *ej` em quase toda função; `proxima`/`proximo` nos nós das listas; ponteiro duplo `InimigoNo **` na remoção de mortos em `inimigos.c` |
-| Alocação dinâmica | `malloc`/`free` em `MagiaNo` (`magias.c`), `InimigoNo` (`inimigos.c`) e `ProjetilInimigoNo` (`projeteis_inimigo.c`); `free` ao morrer o nó e `_liberar_tudo` ao encerrar a run |
-| Listas encadeadas | `MagiaNo` (projéteis do jogador), `InimigoNo` (inimigos) e `ProjetilInimigoNo` (tiro de inimigo) — inserção na cabeça em O(1), remoção com ponteiro duplo |
-| Matrizes | `mods[3]` (profecia), `escolhas_upgrade[CARTAS_POR_ESCOLHA]`, `obstaculos[MAX_OBSTACULOS]`, `dados_ativos[MAX_DADOS_JOGADOR]`, `eventos[MAX_EVENTOS_CRONOGRAMA]`, `top_tempo[LEADERBOARD_TAM]` e `top_biomassa[LEADERBOARD_TAM]` (leaderboards); tabelas `PARAMETROS_INIMIGO[]`, `PARAMETROS_MAGIA[]`, `COMPORTAMENTO_MAGIA[]`, `PARAMETROS_PROJETIL_INIMIGO[]`, `EVENTOS_CRONOGRAMA[]`, `RESOLUCOES_DISPONIVEIS[]` |
-| Arquivo | `salvamento.c` (`saves/biomassa.dat`) — **cumprido.** Persiste a `DadosSalvos` inteira em binário via `fwrite`/`fread`, incluindo config de vídeo, última seed jogada (pra Carregar Jogo), e os dois leaderboards top-10. Validação de versão (`SAVE_VERSAO_ATUAL`) descarta saves antigos automaticamente. |
+| **Structs** | `tipos.h` — `Jogador`, `Inimigo`, `Magia`, `ProjetilInimigo`, `Profecia`, `MotorProfecia`, `Cronograma`, `EstadoJogo`, `DadosSalvos`, `Carta`, `Dado`, `EntradaLeaderboard`, `EntradaHistorico`, `OpcaoMagiaInicial`, … |
+| **Ponteiros** | `EstadoJogo *ej` em quase toda função; `proxima`/`proximo` nos nós; **ponteiro duplo** `InimigoNo **` na remoção de mortos |
+| **Alocação dinâmica** | `malloc`/`free` dos nós das 3 listas, nas engines `magias.c`, `inimigos.c` e `projeteis_inimigo.c` (cada `_spawnar*` aloca; cada morte e os `_liberar_tudo` no fim da run liberam) |
+| **Listas encadeadas** | 3 listas, cada uma com seu nó (definido em `tipos.h`) e sua engine: **`MagiaNo`** — projéteis do jogador, em `src/entidades/magias.c`; **`InimigoNo`** — inimigos, em `src/entidades/inimigos.c`; **`ProjetilInimigoNo`** — tiros de inimigo, em `src/entidades/projeteis_inimigo.c`. Inserção O(1) na cabeça e remoção dos mortos com ponteiro duplo (`No **`) |
+| **Matrizes** | `mods[3]`, `escolhas_upgrade[]`, `eventos[]`, `top_tempo[]`/`top_biomassa[]`, `historico[]`, e as tabelas `PARAMETROS_*[]` / `EVENTOS_CRONOGRAMA[]` |
+| **Arquivo** | `salvamento.c` grava a `DadosSalvos` inteira em binário (`fwrite`/`fread`) em `saves/biomassa.dat`, com validação de versão |
 
-> **Sobre a CLI-LIB.** O spec do PIF cita a [`cli-lib`](https://github.com/tgfb/cli-lib/) como biblioteca padrão sugerida (terminal-based). AUGUR optou por **Raylib** — também permitido pelo enunciado: "É permitido usar outra biblioteca para jogos, entretanto seu uso é de responsabilidade do grupo". A justificativa é técnica: bullet hell precisa renderizar dezenas de projéteis com colisão circular precisa, e câmera 2D rolando suavemente pelo mundo — coisas que ficam pesadas no terminal.
+> **Por que Raylib e não a cli-lib?** O enunciado permite outra biblioteca ("de
+> responsabilidade do grupo"). Um bullet hell precisa renderizar dezenas de projéteis
+> com colisão circular e câmera 2D rolando suave — inviável no terminal.
+
+## Documentação
+
+Guias em [`docs/`](docs/) (veja o [índice](docs/README.md)): setup do ambiente
+([TUTORIAL_AMBIENTE.md](docs/TUTORIAL_AMBIENTE.md)), sprite sheets
+([TUTORIAL_SPRITES.md](docs/TUTORIAL_SPRITES.md)) e o glossário de termos
+([dicionario.md](docs/dicionario.md)).

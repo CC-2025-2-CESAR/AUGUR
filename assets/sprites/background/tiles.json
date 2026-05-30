@@ -1,0 +1,90 @@
+{
+  "tile_size": 64,
+  "seamless": true,
+  "biome": "grama",
+  "note": "Tiles compativeis nas bordas: base de grama com mesma distribuicao estatistica.",
+  "weights_sugeridos": {
+    "plain": 35,
+    "plain2": 22,
+    "patch_grass": 8,
+    "clover": 7,
+    "flowers_y": 7,
+    "flowers_w": 6,
+    "flowers_b": 5,
+    "small_rock": 4,
+    "dirt_patch": 4,
+    "rune_glow": 2
+  },
+  "tiles": {
+    "plain": {
+      "index": 0,
+      "size": [
+        64,
+        64
+      ]
+    },
+    "plain2": {
+      "index": 1,
+      "size": [
+        64,
+        64
+      ]
+    },
+    "patch_grass": {
+      "index": 2,
+      "size": [
+        64,
+        64
+      ]
+    },
+    "flowers_y": {
+      "index": 3,
+      "size": [
+        64,
+        64
+      ]
+    },
+    "flowers_w": {
+      "index": 4,
+      "size": [
+        64,
+        64
+      ]
+    },
+    "flowers_b": {
+      "index": 5,
+      "size": [
+        64,
+        64
+      ]
+    },
+    "small_rock": {
+      "index": 6,
+      "size": [
+        64,
+        64
+      ]
+    },
+    "dirt_patch": {
+      "index": 7,
+      "size": [
+        64,
+        64
+      ]
+    },
+    "clover": {
+      "index": 8,
+      "size": [
+        64,
+        64
+      ]
+    },
+    "rune_glow": {
+      "index": 9,
+      "size": [
+        64,
+        64
+      ]
+    }
+  }
+}

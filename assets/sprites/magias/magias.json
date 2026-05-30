@@ -1,0 +1,58 @@
+{
+  "size": [
+    32,
+    32
+  ],
+  "frames": 1,
+  "orientation": "+X (engine rotaciona)",
+  "elementos": {
+    "fogo": {
+      "size": [
+        32,
+        32
+      ],
+      "frames": 1,
+      "orientation": "right"
+    },
+    "gelo": {
+      "size": [
+        32,
+        32
+      ],
+      "frames": 1,
+      "orientation": "right"
+    },
+    "relampago": {
+      "size": [
+        32,
+        32
+      ],
+      "frames": 1,
+      "orientation": "right"
+    },
+    "veneno": {
+      "size": [
+        32,
+        32
+      ],
+      "frames": 1,
+      "orientation": "right"
+    },
+    "arcano": {
+      "size": [
+        32,
+        32
+      ],
+      "frames": 1,
+      "orientation": "right"
+    },
+    "sombra": {
+      "size": [
+        32,
+        32
+      ],
+      "frames": 1,
+      "orientation": "right"
+    }
+  }
+}

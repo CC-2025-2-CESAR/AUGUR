@@ -12,6 +12,7 @@
 #include "magias.h"
 #include "magias_tipos.h"
 #include "magias_comportamento.h"
+#include "assets.h"   /* g_assets.magias[], desenhar do projétil rotacionado */
 #include <stdlib.h>
 #include <math.h>
 
@@ -108,8 +109,8 @@ static bool calcular_tempo_intercepcao(Vector2 D, Vector2 V,
 }
 
 
-/* Vetor unitário do jogador até o inimigo VIVO (não-aliado) mais próximo,
- * com MIRA PREDITIVA: aponta pra onde o inimigo VAI estar quando o projétil
+/* Vetor unitário do jogador até o inimigo VIVO mais próximo, com MIRA
+ * PREDITIVA: aponta pra onde o inimigo VAI estar quando o projétil
  * chegar, em vez de onde ele está agora. Resolve uma quadrática de
  * interceptação balística usando a velocidade que a IA escreveu no frame
  * anterior (defasagem desprezível com dt~16ms).
@@ -127,7 +128,7 @@ static bool mirar_mais_proximo(const EstadoJogo *ej,
     const InimigoNo *perto = NULL;
     float menor = 1e30f;
     for (const InimigoNo *ino = ej->inimigos_cabeca; ino; ino = ino->proximo) {
-        if (!ino->dados.vivo || ino->dados.aliado) continue;
+        if (!ino->dados.vivo) continue;
         float dx = ino->dados.posicao.x - ej->jogador.posicao.x;
         float dy = ino->dados.posicao.y - ej->jogador.posicao.y;
         float d2 = dx * dx + dy * dy;
@@ -179,6 +180,17 @@ bool magias_disparar_elemento(EstadoJogo *ej, Elemento elemento) {
                        dir.x * 0.2588f + dir.y * 0.9659f };
         magias_spawnar(ej, ej->jogador.posicao, d2, elemento);
     }
+
+    /* Animação de CAST no jogador: vira pra mira e roda anim por janela curta.
+     * Não sobrepõe HURT (HURT tem prioridade no atualizar_jogador via timer). */
+    ej->jogador.cast_tempo_restante = 0.4f;
+    ej->jogador.animacao_atual      = ANIM_CAST;
+    ej->jogador.animacao_tempo      = 0.0f;
+    if (fabsf(dir.x) > fabsf(dir.y))
+        ej->jogador.direcao_atual = (dir.x < 0.0f) ? DIR_LEFT : DIR_RIGHT;
+    else
+        ej->jogador.direcao_atual = (dir.y < 0.0f) ? DIR_UP   : DIR_DOWN;
+
     return true;
 }
 
@@ -218,14 +230,31 @@ void magias_desenhar(const EstadoJogo *ej) {
     for (const MagiaNo *mno = ej->magias_cabeca;
          mno != NULL;
          mno = mno->proxima) {
-        if (!mno->dados.viva) continue;
-        if ((int)mno->dados.elemento < 0 ||
-            (int)mno->dados.elemento >= QTD_PARAMETROS_MAGIA) continue;
+        const Magia *mg = &mno->dados;
+        if (!mg->viva) continue;
+        if ((int)mg->elemento < 0 || (int)mg->elemento >= QTD_PARAMETROS_MAGIA) continue;
 
-        Color cor = PARAMETROS_MAGIA[mno->dados.elemento].cor;
-        DrawCircleV(mno->dados.posicao, mno->dados.raio, cor);
-        /* Núcleo branco pra dar punch visual. */
-        DrawCircleV(mno->dados.posicao, mno->dados.raio * 0.4f, WHITE);
+        Texture2D tex = g_assets.magias[mg->elemento];
+        if (tex.id == 0) {
+            /* Fallback original: bolinha colorida + núcleo branco. */
+            Color cor = PARAMETROS_MAGIA[mg->elemento].cor;
+            DrawCircleV(mg->posicao, mg->raio, cor);
+            DrawCircleV(mg->posicao, mg->raio * 0.4f, WHITE);
+            continue;
+        }
+
+        /* Sprite estático (frame único nos PNGs de magia) rotacionado pra
+         * apontar na direção do voo. atan2 dá o ângulo da velocidade em rad;
+         * RAD2DEG converte porque DrawTexturePro usa graus.
+         * SPRITE_VISUAL_SCALE (assets.h) deixa o projétil maior visualmente
+         * sem aumentar o raio de colisão. */
+        float angulo_deg = atan2f(mg->velocidade.y, mg->velocidade.x) * RAD2DEG;
+        float lado = mg->raio * 2.0f * SPRITE_VISUAL_SCALE;
+        Rectangle src = { 0, 0, (float)tex.width, (float)tex.height };
+        Rectangle dst = { mg->posicao.x, mg->posicao.y, lado, lado };
+        /* origem = (lado/2, lado/2) → rotaciona em volta do centro do projétil. */
+        Vector2 origem = { lado * 0.5f, lado * 0.5f };
+        DrawTexturePro(tex, src, dst, origem, angulo_deg, WHITE);
     }
 }
 

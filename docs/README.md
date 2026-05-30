@@ -7,7 +7,7 @@ Tudo que o grupo precisa pra navegar o projeto além do `README.md` principal. C
 | Arquivo | Pra que serve |
 |---|---|
 | [TUTORIAL_AMBIENTE.md](TUTORIAL_AMBIENTE.md) | Setup completo do ambiente (MSYS2/UCRT64 no Windows, Linux), instalação do Raylib e make, troubleshooting de compilação. Caminho pra quem está clonando o repo pela primeira vez. |
-| [TUTORIAL_SPRITES.md](TUTORIAL_SPRITES.md) | Como trocar as primitivas (`DrawCircleV`) por sprites PNG. Onde colocar os arquivos, formato recomendado, criação do módulo `assets`, integração com as funções `_desenhar`, fallback pra sprite inexistente. |
+| [TUTORIAL_SPRITES.md](TUTORIAL_SPRITES.md) | Sprites do AUGUR em 2 partes. **Parte 1** — entrega da Luísa (pasta, naming dos sheets, formato PNG, layout direcional de 14 rows, tileset com pesos, checklist). **Parte 2** — integração já feita no engine (módulo `assets` + `MetaSheet` direcional + `desenhar_sheet` + animação de hurt/cast/death + tileset com hash determinístico + letterbox via `RenderTexture2D`). |
 
 ## Referências
 

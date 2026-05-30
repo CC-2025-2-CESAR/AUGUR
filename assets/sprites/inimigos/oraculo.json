@@ -1,0 +1,36 @@
+{
+  "frame_size": [
+    128,
+    128
+  ],
+  "rows": {
+    "idle_down": 0,
+    "idle_up": 1,
+    "idle_left": 2,
+    "idle_right": 3,
+    "walk_down": 4,
+    "walk_up": 5,
+    "walk_left": 6,
+    "walk_right": 7,
+    "cast_down": 8,
+    "cast_up": 9,
+    "cast_left": 10,
+    "cast_right": 11,
+    "hurt": 12,
+    "death": 13
+  },
+  "frames": {
+    "idle": 6,
+    "walk": 8,
+    "cast": 6,
+    "hurt": 4,
+    "death": 8
+  },
+  "fps": {
+    "idle": 5,
+    "walk": 8,
+    "cast": 9,
+    "hurt": 12,
+    "death": 6
+  }
+}

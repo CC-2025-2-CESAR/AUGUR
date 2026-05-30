@@ -1,22 +1,11 @@
 /* ============================================================================
- * colisao.c - IMPLEMENTAÇÃO DO SISTEMA DE COLISÃO
- * ============================================================================
- *
- * Colisão em jogos 2D se resume a: "essas duas formas estão se sobrepondo?".
- *
- * TRUQUE DE PERFORMANCE IMPORTANTE:
- *   Pra saber se dois círculos se tocam, o cálculo direto seria
- *     distancia = sqrt((ax-bx)^2 + (ay-by)^2);
- *     se distancia <= ra + rb, tocam.
- *   Mas sqrt é caro. Podemos comparar o QUADRADO da distância com o QUADRADO
- *   dos raios somados — dá o mesmo resultado sem o sqrt.
- *
- * COMPLEXIDADE:
- *   colisao_verificar_tudo é O(N×M) onde N=magias, M=inimigos. Pra ~100
- *   inimigos × 200 projéteis = 20000 checagens por frame. A 60fps isso é
- *   ~1.2M/s, ainda tranquilo pra CPU moderna. Se virar gargalo, no futuro
- *   dava pra usar grid espacial, mas por ora KISS.
- * ========================================================================== */
+ * colisao.c - SISTEMA DE COLISÃO
+ * ----------------------------------------------------------------------------
+ * Primitivas círculo/caixa + resolução de dano, status (riders) e combos no
+ * combate. Usa distância ao QUADRADO (comparada com a soma dos raios ao
+ * quadrado) pra evitar sqrt nas checagens. colisao_verificar_tudo é O(N×M)
+ * (magias × inimigos) — tranquilo pros tetos do jogo.
+ * ============================================================================ */
 
 #include "colisao.h"
 #include "jogador.h"
@@ -64,26 +53,17 @@ bool colisao_circulo_caixa(Vector2 c, float r, Rectangle caixa) {
 }
 
 
-/* ----- DANO A INIMIGO (caminho único) -----
- * Consome o multiplicador de "próxima hit" do combo Choque Térmico e o
- * "dano triplo" residual no motor (EF_DANO_TRIPLO saiu do pool, mas o campo
- * permanece pra eventual reintrodução via carta), depois subtrai vida. Se
- * zerou, mata pelo caminho único pra biomassa contar sempre. */
+/* Aplica dano num inimigo (caminho único). Consome o multiplicador de "próxima
+ * hit" do combo Choque Térmico antes de subtrair vida. Se zerou, mata pelo
+ * caminho único pra a biomassa contar sempre. */
 static void aplicar_dano_inimigo(EstadoJogo *ej, Inimigo *i, float dano) {
     float mult = 1.0f;
-
     if (i->proxima_hit_multiplicador > 1.0f) {
         mult *= i->proxima_hit_multiplicador;
         i->proxima_hit_multiplicador = 1.0f;   /* consome */
     }
-    if (ej->motor_profecia.dano_triplo_proxima > 1.0f) {
-        mult *= ej->motor_profecia.dano_triplo_proxima;
-        ej->motor_profecia.dano_triplo_proxima = 0.0f;   /* consome */
-    }
 
-    float dano_final = dano * mult;
-    i->vida -= (int)dano_final;
-
+    i->vida -= (int)(dano * mult);
     if (i->vida <= 0) {
         inimigos_registrar_morte(ej, i);
     }
@@ -133,7 +113,7 @@ static void aplicar_rider_magia(EstadoJogo *ej, MagiaNo *mno, Inimigo *primario)
                 for (InimigoNo *ino = ej->inimigos_cabeca;
                      ino != NULL; ino = ino->proximo) {
                     Inimigo *c = &ino->dados;
-                    if (!c->vivo || c->aliado) continue;
+                    if (!c->vivo) continue;
 
                     bool ja = false;
                     for (int k = 0; k < nv; k++) {
@@ -179,7 +159,6 @@ void colisao_verificar_tudo(EstadoJogo *ej) {
     /* ---- 1. Jogador vs Inimigos ---- */
     for (InimigoNo *ino = ej->inimigos_cabeca; ino != NULL; ino = ino->proximo) {
         if (!ino->dados.vivo) continue;   /* pula inimigos já mortos */
-        if (ino->dados.aliado) continue;  /* aliado da profecia não fere o jogador */
 
         /* Vetor do inimigo para o jogador. Distância ao quadrado pra evitar
          * sqrt no caso de "não tocou". */
@@ -226,7 +205,6 @@ void colisao_verificar_tudo(EstadoJogo *ej) {
              ino = ino->proximo) {
 
             if (!ino->dados.vivo) continue;
-            if (ino->dados.aliado) continue;   /* não acerta aliado da profecia */
 
             /* Raio do projétil vem da struct Magia, preenchido pela engine
              * (magias.c) a partir de PARAMETROS_MAGIA[elemento].raio_projetil. */
