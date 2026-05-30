@@ -91,24 +91,32 @@ travar os outros. O contrato comum é o `tipos.h`.
 
 ## Compilar e rodar
 
-Requisitos: **GCC** (MSYS2 UCRT64 no Windows), **Raylib 5.5**, **GNU Make**.
+Requisitos: um compilador C (**GCC** ou **Clang**), **Raylib 5.5** e **GNU Make**.
+O Makefile detecta o sistema (**Windows / Linux / macOS**) e linka as libs certas
+do Raylib automaticamente.
 
-Instalar o ambiente (terminal MSYS2 UCRT64):
+Instalar o Raylib + make:
 
 ```bash
-pacman -Syu
+# Windows (terminal MSYS2 UCRT64)
 pacman -S mingw-w64-ucrt-x86_64-raylib mingw-w64-ucrt-x86_64-make
+
+# Linux (Debian/Ubuntu) — se o pacote do apt for antigo, compile o Raylib 5.5 da fonte
+sudo apt install build-essential libraylib-dev
+
+# macOS (Homebrew)
+brew install raylib make
 ```
 
 Compilar e jogar:
 
-```powershell
-mingw32-make      # gera augur.exe
-.\augur.exe       # roda
-mingw32-make clean
+```bash
+make          # compila (gera augur / augur.exe)
+make run      # compila e roda
+make clean
 ```
 
-(No terminal MSYS2/Linux: `make`, `make run`, `make clean`.)
+> No Windows, fora do MSYS2 (PowerShell/CMD), use **`mingw32-make`** no lugar de `make`.
 
 ## Estrutura de pastas
 
