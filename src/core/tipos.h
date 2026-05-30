@@ -206,6 +206,7 @@ typedef struct {
     float ataque_cooldown_restante;  /* >0: corpo a corpo em cooldown */
     float   ataque_lunge_restante;   /* >0: avançando (lunge) na direção travada no golpe */
     Vector2 ataque_lunge_vel;        /* velocidade do lunge, travada no instante do golpe */
+    float   contato_cooldown_restante; /* >0: já machucou por toque há pouco (chip rate-limited) */
 
     /* Visual (módulo assets). */
     int   direcao_atual;

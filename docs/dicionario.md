@@ -146,7 +146,7 @@ Tipos planejados (GDD): `d6 Comum` (1–6 uniforme, inicial), `d6 Viciado` (sem 
 ### Dash
 **Investida rápida** numa direção, geralmente curta e com cooldown. Em jogos top-down funciona como esquiva ofensiva.
 
-**No projeto:** ainda não tem dash implementado — não há tecla de investida nem condição de profecia ligada a isso na versão atual.
+**No projeto:** ainda não tem dash implementado — não há tecla de investida nem condição de profecia ligada a isso na versão atual. (O **lunge** do inimigo no golpe corpo a corpo é um avanço de IA, não um dash do jogador — ver *Lunge / Investida*.)
 
 ### DoT (Damage over Time)
 Dano **contínuo ao longo do tempo**, não num pulso só. Ex.: queimadura que tira 5 HP por segundo durante 4 segundos.
@@ -176,7 +176,7 @@ Dano **contínuo ao longo do tempo**, não num pulso só. Ex.: queimadura que ti
 ### Knockback
 **Empurrão** que um ataque dá no alvo. Ataque com knockback pra fora afasta o inimigo; sem knockback ele "fica colado" em você.
 
-**No projeto:** não implementado. O contato jogador-inimigo em `colisao.c` aplica dano puro + push-out físico (o inimigo bloqueia o jogador), sem knockback.
+**No projeto:** não implementado. O contato jogador-inimigo em `colisao.c` aplica um **dano de contato leve com cooldown** (ver *Dano de contato*) + push-out físico (o inimigo bloqueia o jogador), sem knockback.
 
 ### Mutação passiva
 Bônus permanente do **feiticeiro** que vale em todas as runs, independente da Profecia. Ao contrário de uma carta de upgrade (que vive só na run atual), uma mutação fica desbloqueada pra sempre depois que você gasta biomassa nela.
@@ -493,6 +493,26 @@ Lista das **últimas runs jogadas** (seed + resultado), pra recarregar uma parti
 Após a profecia, o jogador escolhe **1 de 3 magias** sorteadas; ela vira um 4º elemento no auto-fire. **Sinergia** = pelo menos uma das opções usa um elemento que aparece em algum mod da profecia (combina com os efeitos dela).
 
 **No projeto:** `magia_inicial.c` sorteia as 3 opções (garantindo a sinergia) e a tela `ESTADO_ESCOLHA_MAGIA_INICIAL` mostra os cards. O 4º slot entra no round-robin de `magias_tipos_processar_auto_fire`.
+
+### Telegrafar / Windup (aviso de golpe)
+**Telegrafar** um ataque = dar um aviso visível ANTES do golpe sair, pra o jogador ter chance de reagir. O **windup** é a janela de "carregar" (o inimigo para e faz a pose de ataque) entre decidir atacar e o golpe acontecer.
+
+**No projeto:** inimigos corpo a corpo e elite (`alcance_ataque > 0` na tabela `PARAMETROS_INIMIGO`) param ao chegar perto, carregam o golpe por `telegrafo_ataque` segundos (animação CAST + tint amarelo crescente) e só então batem. Lógica em `inimigo_processar_ataque` (`inimigos.c`). Dá pra esquivar saindo do alcance durante o windup.
+
+### Lunge / Investida
+Um **avanço curto e rápido** numa direção, normalmente como parte de um golpe corpo a corpo — o inimigo "pula" em cima do alvo na hora de bater, fechando a distância pra o ataque não ser fácil de evitar só recuando de leve.
+
+**No projeto:** ao fim do windup o melee trava a direção do jogador e **avança** (`ataque_lunge_*` em `Inimigo`; velocidade = `velocidade_movimento * LUNGE_MULT` por `LUNGE_DURACAO` s, ambos em `inimigos.c`). O golpe conecta se o avanço terminar encostando — recuar de leve não salva, sair de lado sim. Não confundir com *Dash* (investida do jogador, não implementada).
+
+### Dano de contato
+Dano que um inimigo causa **só por encostar** no jogador, sem um ataque específico. Aplicado a cada frame fica massivo (60×/s); por isso costuma vir limitado por um cooldown (parente das *i-frames*).
+
+**No projeto:** `colisao.c` aplica um chip **leve** (`CONTATO_DANO_FRAC` do dano do inimigo) com **cooldown por inimigo** (`CONTATO_COOLDOWN`, campo `contato_cooldown_restante`), pra não drenar HP enquanto encostado. É secundário ao golpe telegrafado (o dano "de verdade" do melee). O push-out físico continua empurrando o jogador pra fora.
+
+### Feedback de hit (flash)
+Resposta visual imediata a um evento de combate, pra o jogador "sentir" o acerto sem olhar o HUD. Clássico: o alvo pisca de cor ao levar dano.
+
+**No projeto:** inimigos piscam **vermelho** ao tomar dano (`dano_flash_tempo`, tint multiplicativo em `inimigos_desenhar`) e **amarelo** enquanto carregam o golpe (windup). O jogador entra na animação HURT ao tomar hit (`jogador_sofrer_dano`). Funciona tanto no sprite quanto no fallback de círculo.
 
 ---
 
