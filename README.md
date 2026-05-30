@@ -78,11 +78,11 @@ Menu → (seed) → Revelação da Profecia → Escolha da Magia Inicial → Com
 O projeto é dividido por responsabilidade pra cada um trabalhar no seu módulo sem
 travar os outros. O contrato comum é o `tipos.h`.
 
-| Dev | Frente | Pelo que é responsável |
-|-----|--------|------------------------|
-| **Arthur** (Dev 1) | Engine & Core | Game loop e máquina de estados (`main.c`), contrato de tipos (`tipos.h`), colisão, **motor de profecia**, engines de inimigos/magias/cronograma/projéteis de inimigo, combos, render de sprites (`assets`), letterbox, leaderboard, config de vídeo, histórico, escolha de magia inicial e a integração geral. |
-| **Sofia** (Dev 2) | Sistemas de jogo | **Cartas** de upgrade, **sistema de dados**, **salvamento** em arquivo e a **HUD** de combate (vida, tempo, biomassa, aviso de chefão). |
-| **Luísa** (Dev 3) | Conteúdo, balanceamento & arte | Tabelas de stats e **IA** dos inimigos, stats/auto-fire das magias e seus status, tiro de inimigo, magnitudes da profecia/combos, **timeline de spawns**, e todas as **sprite sheets + tileset**. |
+| Dev | Frente | Pelo que é responsável | Arquivos (em `src/`) |
+|-----|--------|------------------------|----------------------|
+| **Arthur** (Dev 1) | Engine & Core | Game loop e máquina de estados, contrato de tipos, colisão, **motor de profecia**, engines de inimigos/magias/cronograma/projéteis de inimigo, combos, render de sprites, letterbox, leaderboard, config de vídeo, histórico, escolha de magia inicial e a integração geral. | `core/main.c`, `core/tipos.h`, `core/colisao`, `core/assets`, `entidades/jogador`, `entidades/inimigos`, `entidades/magias`, `entidades/projeteis_inimigo`, `sistemas/profecia`, `sistemas/combos`, `sistemas/cronograma`, `sistemas/config_video`, `sistemas/leaderboard`, `sistemas/historico`, `sistemas/magia_inicial` |
+| **Sofia** (Dev 2) | Sistemas de jogo | **Cartas** de upgrade, **sistema de dados**, **salvamento** em arquivo e a **HUD** de combate (vida, tempo, biomassa, aviso de chefão). | `sistemas/cartas`, `sistemas/dados`, `sistemas/salvamento`, `interface/hud` |
+| **Luísa** (Dev 3) | Conteúdo, balanceamento & arte | Tabelas de stats e **IA** dos inimigos, stats/auto-fire das magias e seus status, tiro de inimigo, magnitudes da profecia/combos, **timeline de spawns**, e todas as **sprite sheets + tileset**. | `entidades/inimigos_tipos`, `entidades/magias_tipos`, `entidades/magias_comportamento`, `entidades/projeteis_inimigo_tipos`, `sistemas/profecia_efeitos`, `sistemas/cronograma_eventos`, `assets/sprites/` |
 
 > **Engine vs. conteúdo.** Tudo que termina em `_tipos.c`, `_eventos.c`,
 > `_comportamento.c` ou `_efeitos.c` é conteúdo/balanceamento (Luísa): tabelas `const`
@@ -174,7 +174,7 @@ resolução fixa fica em **Opções**.
 | **Ponteiros** | `EstadoJogo *ej` em quase toda função; `proxima`/`proximo` nos nós; **ponteiro duplo** `InimigoNo **` na remoção de mortos |
 | **Alocação dinâmica** | `malloc`/`free` dos nós das 3 listas, nas engines `magias.c`, `inimigos.c` e `projeteis_inimigo.c` (cada `_spawnar*` aloca; cada morte e os `_liberar_tudo` no fim da run liberam) |
 | **Listas encadeadas** | 3 listas, cada uma com seu nó (definido em `tipos.h`) e sua engine: **`MagiaNo`** — projéteis do jogador, em `src/entidades/magias.c`; **`InimigoNo`** — inimigos, em `src/entidades/inimigos.c`; **`ProjetilInimigoNo`** — tiros de inimigo, em `src/entidades/projeteis_inimigo.c`. Inserção O(1) na cabeça e remoção dos mortos com ponteiro duplo (`No **`) |
-| **Matrizes** | `mods[3]`, `escolhas_upgrade[]`, `eventos[]`, `top_tempo[]`/`top_biomassa[]`, `historico[]`, e as tabelas `PARAMETROS_*[]` / `EVENTOS_CRONOGRAMA[]` |
+| **Matrizes** | Arrays em structs de `tipos.h`, consumidos pelas engines: `mods[3]` (`profecia.c`), `escolhas_upgrade[]` (`cartas.c`), `eventos[]` (`cronograma.c`), `top_tempo[]`/`top_biomassa[]` (`leaderboard.c`), `historico[]` (`historico.c`), `profecias_desbloqueadas[20]` (`salvamento.c`). E as tabelas `const` de conteúdo: `PARAMETROS_INIMIGO[]` (`inimigos_tipos.c`), `PARAMETROS_MAGIA[]` (`magias_tipos.c`), `COMPORTAMENTO_MAGIA[]` (`magias_comportamento.c`), `PARAMETROS_PROJETIL_INIMIGO[]` (`projeteis_inimigo_tipos.c`), `EVENTOS_CRONOGRAMA[]` (`cronograma_eventos.c`) |
 | **Arquivo** | `salvamento.c` grava a `DadosSalvos` inteira em binário (`fwrite`/`fread`) em `saves/biomassa.dat`, com validação de versão |
 
 > **Por que Raylib e não a cli-lib?** O enunciado permite outra biblioteca ("de
