@@ -36,6 +36,9 @@ const ParametrosInimigo PARAMETROS_INIMIGO[] = {
         .cor                  = (Color){ 220,  60,  60, 255 },  /* vermelho */
         .recompensa_biomassa  = 5,
         .comportamento        = IA_CHASE,
+        .alcance_ataque       = 50.0f,
+        .telegrafo_ataque     = 0.35f,
+        .cooldown_ataque      = 1.1f,
     },
 
     /* à distância — mantém afastado e atira. */
@@ -60,6 +63,9 @@ const ParametrosInimigo PARAMETROS_INIMIGO[] = {
         .cor                  = (Color){ 160,  80, 220, 255 },  /* roxo */
         .recompensa_biomassa  = 25,
         .comportamento        = IA_CHASE,
+        .alcance_ataque       = 64.0f,
+        .telegrafo_ataque     = 0.30f,
+        .cooldown_ataque      = 0.9f,
     },
 
     /* chefão — encerra a run. Tank com fases por % de vida. */

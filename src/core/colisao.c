@@ -10,6 +10,7 @@
 #include "colisao.h"
 #include "jogador.h"
 #include "inimigos.h"
+#include "inimigos_tipos.h"
 #include "magias_comportamento.h"
 #include "profecia.h"
 #include "profecia_efeitos.h"
@@ -64,6 +65,7 @@ static void aplicar_dano_inimigo(EstadoJogo *ej, Inimigo *i, float dano) {
     }
 
     i->vida -= (int)(dano * mult);
+    i->dano_flash_tempo = DANO_FLASH_DURACAO;   /* pisca vermelho (feedback de hit) */
     if (i->vida <= 0) {
         inimigos_registrar_morte(ej, i);
     }
@@ -168,13 +170,23 @@ void colisao_verificar_tudo(EstadoJogo *ej) {
         float soma_raios = ej->jogador.raio + ino->dados.raio;
 
         if (distancia2 <= soma_raios * soma_raios) {
-            /* Escudo da profecia anula 1 hit; senão dano + gatilho da
-             * condição "Ao tomar dano". */
-            if (ej->motor_profecia.escudo_ativo > 0.0f) {
-                ej->motor_profecia.escudo_ativo = 0.0f;
-            } else {
-                jogador_sofrer_dano(&ej->jogador, (int)ino->dados.dano);
-                profecia_evento_ao_receber_dano(ej);
+            /* Inimigos corpo a corpo (alcance_ataque>0) causam dano pelo golpe
+             * telegrafado (inimigos.c), NÃO por contato — aqui eles só empurram.
+             * Quem não tem golpe (ranged que esbarra, chefe) ainda dá dano de
+             * contato. Escudo da profecia anula 1 hit. */
+            bool causa_dano_contato = true;
+            if ((int)ino->dados.tipo >= 0 &&
+                (int)ino->dados.tipo < QTD_PARAMETROS_INIMIGO &&
+                PARAMETROS_INIMIGO[ino->dados.tipo].alcance_ataque > 0.0f) {
+                causa_dano_contato = false;
+            }
+            if (causa_dano_contato) {
+                if (ej->motor_profecia.escudo_ativo > 0.0f) {
+                    ej->motor_profecia.escudo_ativo = 0.0f;
+                } else {
+                    jogador_sofrer_dano(&ej->jogador, (int)ino->dados.dano);
+                    profecia_evento_ao_receber_dano(ej);
+                }
             }
 
             /* COLISÃO FÍSICA: empurra o jogador pra fora do inimigo pela
