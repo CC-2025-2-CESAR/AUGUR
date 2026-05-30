@@ -172,8 +172,8 @@ resolução fixa fica em **Opções**.
 |----------|------|
 | **Structs** | `tipos.h` — `Jogador`, `Inimigo`, `Magia`, `ProjetilInimigo`, `Profecia`, `MotorProfecia`, `Cronograma`, `EstadoJogo`, `DadosSalvos`, `Carta`, `Dado`, `EntradaLeaderboard`, `EntradaHistorico`, `OpcaoMagiaInicial`, … |
 | **Ponteiros** | `EstadoJogo *ej` em quase toda função; `proxima`/`proximo` nos nós; **ponteiro duplo** `InimigoNo **` na remoção de mortos |
-| **Alocação dinâmica** | `malloc`/`free` dos nós de `MagiaNo`, `InimigoNo`, `ProjetilInimigoNo`; `_liberar_tudo` ao fim da run |
-| **Listas encadeadas** | projéteis do jogador, inimigos e tiros de inimigo — inserção O(1) na cabeça, remoção com ponteiro duplo |
+| **Alocação dinâmica** | `malloc`/`free` dos nós das 3 listas, nas engines `magias.c`, `inimigos.c` e `projeteis_inimigo.c` (cada `_spawnar*` aloca; cada morte e os `_liberar_tudo` no fim da run liberam) |
+| **Listas encadeadas** | 3 listas, cada uma com seu nó (definido em `tipos.h`) e sua engine: **`MagiaNo`** — projéteis do jogador, em `src/entidades/magias.c`; **`InimigoNo`** — inimigos, em `src/entidades/inimigos.c`; **`ProjetilInimigoNo`** — tiros de inimigo, em `src/entidades/projeteis_inimigo.c`. Inserção O(1) na cabeça e remoção dos mortos com ponteiro duplo (`No **`) |
 | **Matrizes** | `mods[3]`, `escolhas_upgrade[]`, `eventos[]`, `top_tempo[]`/`top_biomassa[]`, `historico[]`, e as tabelas `PARAMETROS_*[]` / `EVENTOS_CRONOGRAMA[]` |
 | **Arquivo** | `salvamento.c` grava a `DadosSalvos` inteira em binário (`fwrite`/`fread`) em `saves/biomassa.dat`, com validação de versão |
 
