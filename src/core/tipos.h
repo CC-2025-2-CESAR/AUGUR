@@ -45,8 +45,9 @@
  * binário e são zerados automaticamente. */
 #define SAVE_VERSAO_ATUAL 3
 
-#define LEADERBOARD_TAM   10    /* top-10 nas duas tabelas (tempo + biomassa) */
-#define SEED_MAX_DIGITOS  10    /* unsigned int 32-bit cabe em 10 dígitos decimais */
+#define LEADERBOARD_TAM     10  /* top-10 nas duas tabelas (tempo + biomassa) */
+#define HISTORICO_SEEDS_TAM 10  /* últimas 10 seeds jogadas, em ordem cronológica */
+#define SEED_MAX_DIGITOS    10  /* unsigned int 32-bit cabe em 10 dígitos decimais */
 
 #define MAX_PROJETEIS     256   /* teto de segurança pra lista de magias */
 #define MAX_PROJETEIS_INIMIGO 256 /* teto da lista de projéteis de inimigo */
@@ -84,9 +85,11 @@ typedef enum {
     ESTADO_MENU,                /* tela inicial */
     ESTADO_OPCOES,              /* config de vídeo: resolução, fullscreen */
     ESTADO_LEADERBOARD,         /* tabelas top-10 (tempo e biomassa) */
+    ESTADO_HISTORICO,           /* lista de até 10 seeds jogadas recentemente */
     ESTADO_INSERIR_SEED,        /* input de seed manual antes de uma run */
-    ESTADO_REVELACAO_PROFECIA,  /* mostra os 3 modificadores sorteados */
-    ESTADO_COMBATE,             /* timeline rolando, inimigos spawnando */
+    ESTADO_REVELACAO_PROFECIA,      /* mostra os 3 modificadores sorteados */
+    ESTADO_ESCOLHA_MAGIA_INICIAL,   /* depois da profecia: escolhe 1 de 3 magias */
+    ESTADO_COMBATE,                 /* timeline rolando, inimigos spawnando */
     ESTADO_PAUSA,               /* ESC durante o combate; mundo congelado */
     ESTADO_CARTAS_UPGRADE,      /* a cada minuto: jogador escolhe upgrade */
     ESTADO_GAME_OVER,           /* morreu, mostra score e seed */
@@ -464,6 +467,21 @@ typedef struct {
 } EntradaLeaderboard;
 
 
+/* -------------------- ENTRADA DE HISTÓRICO --------------------
+ * Uma linha do histórico de seeds jogadas (até HISTORICO_SEEDS_TAM, em ordem
+ * cronológica reversa — índice 0 = mais recente). Persiste todas as runs que
+ * chegaram ao fim (vitória ou derrota), permitindo recarregar uma seed boa
+ * que o jogador rodou semanas atrás sem precisar anotar.
+ * --------------------------------------------------------------- */
+typedef struct {
+    unsigned int seed;              /* seed jogada */
+    bool         venceu;            /* true se chegou ao chefão e derrotou */
+    float        tempo_segundos;    /* tempo no momento de fim de run */
+    int          pontuacao;         /* biomassa coletada */
+    bool         ocupado;           /* false = slot vazio */
+} EntradaHistorico;
+
+
 /* -------------------- DADOS SALVOS (DEV 2) --------------------
  * Persistem entre runs. Sofia escreve via fwrite em saves/biomassa.dat
  * (REQUISITO OBRIGATÓRIO de PIF: arquivo). Layout serializado é literalmente
@@ -494,7 +512,25 @@ typedef struct {
     /* --- leaderboards --- */
     EntradaLeaderboard top_tempo[LEADERBOARD_TAM];     /* só vitórias; tempo crescente */
     EntradaLeaderboard top_biomassa[LEADERBOARD_TAM];  /* vit. e derrotas; pontuação decrescente */
+
+    /* --- histórico de seeds jogadas (mais recente em [0]) --- */
+    EntradaHistorico historico[HISTORICO_SEEDS_TAM];
+    int              historico_qtd;                    /* 0..HISTORICO_SEEDS_TAM */
 } DadosSalvos;
+
+
+/* -------------------- OPCAO DE MAGIA INICIAL (TELA DE ESCOLHA) --------------------
+ * Após a revelação da profecia, o jogador escolhe 1 de 3 magias sorteadas.
+ * A magia escolhida vira o 4º elemento do auto-fire (round-robin se soma aos
+ * 3 elementos dos mods da profecia). Pelo menos 1 das 3 opções sorteadas tem
+ * elemento sinergético — bate com algum mod da profecia.
+ * ---------------------------------------------------------------- */
+typedef struct {
+    Elemento  elemento;             /* qual elemento essa opção representa */
+    int       raridade;             /* 0..5, igual à curva das cartas de upgrade */
+    bool      sinergetica;          /* true se elemento bate com algum mod */
+    char      nome[24];             /* "Bola de Fogo", "Lança Gelada" etc. */
+} OpcaoMagiaInicial;
 
 
 /* ============================================================================
@@ -545,6 +581,12 @@ typedef struct {
     /* --- Opções de upgrade mostradas no estado CARTAS_UPGRADE ---
      * MATRIZ de 3 cartas (requisito obrigatório). */
     Carta     escolhas_upgrade[CARTAS_POR_ESCOLHA];
+
+    /* --- Opções de magia inicial mostradas no estado ESCOLHA_MAGIA_INICIAL --- */
+    OpcaoMagiaInicial opcoes_magia[3];
+    int               opcao_magia_selecionada;   /* 0..2 */
+    Elemento          magia_inicial_escolhida;   /* aplicada no auto-fire (4º slot) */
+    bool              magia_inicial_definida;    /* false antes da escolha */
 
     /* --- Dados que o jogador escolheu levar nessa run --- */
     Dado      dados_ativos[MAX_DADOS_JOGADOR];
