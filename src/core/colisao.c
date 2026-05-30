@@ -1,22 +1,11 @@
 /* ============================================================================
- * colisao.c - IMPLEMENTAÇÃO DO SISTEMA DE COLISÃO
- * ============================================================================
- *
- * Colisão em jogos 2D se resume a: "essas duas formas estão se sobrepondo?".
- *
- * TRUQUE DE PERFORMANCE IMPORTANTE:
- *   Pra saber se dois círculos se tocam, o cálculo direto seria
- *     distancia = sqrt((ax-bx)^2 + (ay-by)^2);
- *     se distancia <= ra + rb, tocam.
- *   Mas sqrt é caro. Podemos comparar o QUADRADO da distância com o QUADRADO
- *   dos raios somados — dá o mesmo resultado sem o sqrt.
- *
- * COMPLEXIDADE:
- *   colisao_verificar_tudo é O(N×M) onde N=magias, M=inimigos. Pra ~100
- *   inimigos × 200 projéteis = 20000 checagens por frame. A 60fps isso é
- *   ~1.2M/s, ainda tranquilo pra CPU moderna. Se virar gargalo, no futuro
- *   dava pra usar grid espacial, mas por ora KISS.
- * ========================================================================== */
+ * colisao.c - SISTEMA DE COLISÃO
+ * ----------------------------------------------------------------------------
+ * Primitivas círculo/caixa + resolução de dano, status (riders) e combos no
+ * combate. Usa distância ao QUADRADO (comparada com a soma dos raios ao
+ * quadrado) pra evitar sqrt nas checagens. colisao_verificar_tudo é O(N×M)
+ * (magias × inimigos) — tranquilo pros tetos do jogo.
+ * ============================================================================ */
 
 #include "colisao.h"
 #include "jogador.h"

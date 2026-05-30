@@ -1,13 +1,9 @@
 /* ============================================================================
- * assets.c - IMPLEMENTAÇÃO DO MÓDULO ASSETS
- * ============================================================================
- *
- * Carrega as sprite sheets da Luísa (assets/sprites/...) na inicialização,
- * libera no shutdown, e provê desenhar_sheet() pra render com seleção de
- * (row, frame) baseada em (animação, direção, tempo).
- *
- * Carregamento é resiliente: se um PNG faltar, LoadTexture deixa id=0 e os
- * render functions caem em fallback de primitiva (círculo, etc.).
+ * assets.c - CARGA E DESENHO DAS SPRITE SHEETS
+ * ----------------------------------------------------------------------------
+ * Carrega as sheets/tileset (assets/sprites/...) na init, libera no shutdown e
+ * provê desenhar_sheet() (mapeia animação+direção+tempo -> row/frame). Resiliente:
+ * se um PNG faltar, LoadTexture deixa id=0 e o render cai em primitiva.
  * ============================================================================ */
 
 #include "assets.h"
