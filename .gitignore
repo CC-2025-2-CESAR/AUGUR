@@ -7,8 +7,10 @@ augur
 # Saves locais
 saves/*.dat
 
-# Editors
-.vscode/
+# Editors (versiona so o c_cpp_properties.json, pro IntelliSense achar os
+# headers do projeto; o resto do .vscode fica ignorado)
+.vscode/*
+!.vscode/c_cpp_properties.json
 .idea/
 *.swp
 *.swo
