@@ -47,7 +47,7 @@ A **linha do tempo da run inteira**, em vez de ondas separadas. Estilo Vampire S
 ### Meta-progressão
 Progresso permanente do jogador que **persiste entre runs**, mesmo quando ele morre. É o que faz o roguelite ser viciante: cada morte ainda dá algum ganho.
 
-**No projeto:** **fora de escopo na versão atual.** A biomassa existe (`Jogador.biomassa`) mas é usada como **pontuação da run**, exibida no game over / vitória — não persiste entre runs. `DadosSalvos` e `salvamento.c` continuam como stub dormente da Sofia; quando a meta-progressão voltar ao escopo, a moeda persistente entra aqui.
+**No projeto:** **fora de escopo na versão atual.** A biomassa existe (`Jogador.biomassa`) mas é usada como **pontuação da run**, exibida no game over / vitória — não persiste entre runs. O `salvamento.c` da Sofia já está implementado (guarda config de vídeo, leaderboards e histórico de seeds), mas **não** acumula moeda permanente; quando a meta-progressão voltar ao escopo, ela entra aqui.
 
 > **Vocabulário, não poder.** O design original do AUGUR é deliberado: a meta-progressão **não deixaria o jogador mais forte diretamente** — desbloquearia *opções* (novos dados, magias, mutações passivas, dicas de Profecia). Mantido aqui como referência de design do GDD; **não implementado** na versão atual.
 
@@ -78,7 +78,7 @@ Em jogos com customização (RPGs, roguelites), uma **build** é a combinação 
 ### Buff / Debuff
 **Buff** = efeito *positivo* temporário (mais dano, mais velocidade, escudo). **Debuff** = efeito *negativo* (lento, queimando, com menos defesa).
 
-**No projeto:** em `tipos.h` os efeitos `EF_VELOCIDADE_MAIS` e `EF_DANO_MAIS` são buffs no jogador. `EF_LENTIDAO` e `EF_VENENO` são debuffs em inimigos.
+**No projeto:** os efeitos da profecia (`Efeito` em `tipos.h`) incluem buffs no jogador — `EF_CURA` (recupera HP) e `EF_ESCUDO` (anula o próximo hit) — e debuffs em inimigos — `EF_CONGELAR` (stun) e `EF_IGNITE` (DoT de fogo).
 
 ### Chase / IA Chase
 Comportamento de inimigo mais simples possível: **andar em linha reta na direção do jogador**. Sem desvio, sem estratégia. Igual ao que você vê em Pac-Man com os fantasmas.
@@ -119,12 +119,12 @@ Termo da fantasia: **livro de magias** do feiticeiro. Em jogos, costuma ser usad
 ### Hit
 Acerto. Tanto "o projétil acertou o inimigo" quanto "o inimigo me acertou" são "hits".
 
-**No projeto:** as condições da profecia (enum `Condicao` em `tipos.h`, reorganizado conforme o GDD) usam isso: `COND_AO_ACERTAR` (toda magia que acerta), `COND_PRIMEIRA_HIT` (a 1ª da run), `COND_AO_MATAR` (inimigo morreu) e `COND_AO_RECEBER_DANO` (jogador tomou hit). O motor que dispara os efeitos fica em `profecia.c`.
+**No projeto:** as 4 condições da profecia (enum `Condicao` em `tipos.h`) usam isso: `COND_AO_ACERTAR` (toda magia que acerta), `COND_AO_MATAR` (inimigo morreu), `COND_AO_RECEBER_DANO` (jogador tomou hit) e `COND_A_CADA_N_SEG` (timer). O motor que dispara os efeitos fica em `profecia.c`.
 
 ### Combo
 Sequência de acertos/abates dentro de uma janela de tempo curta. Geralmente recompensa o jogador (mais dano, gatilho de efeito).
 
-**No projeto:** a condição `COND_EM_COMBO` em `tipos.h` dispara o efeito da profecia quando o jogador atinge o limiar de kills dentro da janela de combo. Limiar e janela são tunáveis pela Luísa em `profecia_efeitos.c` (`LIMIARES_CONDICAO`).
+**No projeto:** os **combos elementais** (Choque Térmico = Fogo→Gelo; Arcano vs. envenenado) são detectados em `combos.c` no momento do acerto; os multiplicadores são tunáveis em `profecia_efeitos.c` (`MAGNITUDES_EFEITO`). A condição genérica "em combo" do GDD não está no pool atual de profecias.
 
 ### Combo emergente
 Interação entre dois sistemas (geralmente magias) que **cria um efeito não documentado** — o jogador descobre por experimentação. Não é uma feature listada em tutorial; é uma consequência natural das regras se combinarem. Quando o sistema permite combos emergentes, o jogador "inventa" estratégias e isso vira parte da identidade do jogo.
@@ -146,12 +146,12 @@ Tipos planejados (GDD): `d6 Comum` (1–6 uniforme, inicial), `d6 Viciado` (sem 
 ### Dash
 **Investida rápida** numa direção, geralmente curta e com cooldown. Em jogos top-down funciona como esquiva ofensiva.
 
-**No projeto:** a condição `COND_NO_DASH` em `tipos.h` está reservada pra quando essa mecânica for adicionada — ainda não tem dash implementado.
+**No projeto:** ainda não tem dash implementado — não há tecla de investida nem condição de profecia ligada a isso na versão atual.
 
 ### DoT (Damage over Time)
 Dano **contínuo ao longo do tempo**, não num pulso só. Ex.: queimadura que tira 5 HP por segundo durante 4 segundos.
 
-**No projeto:** `EF_VENENO` em `tipos.h` é um DoT. O comentário no enum literalmente diz `/* DoT */`.
+**No projeto:** o **veneno** é um DoT: o rider do elemento Veneno (`magias_comportamento.c`) aplica `veneno_dps`/`veneno_tempo` no inimigo, e `inimigos.c` desconta a vida por segundo (acumulador float pra não truncar). O efeito de profecia `EF_IGNITE` é outro DoT (fogo).
 
 ### Hitbox
 Área **invisível** que define onde uma entidade pode ser atingida. Em jogos 2D simples, costuma ser um círculo ou retângulo.
@@ -171,7 +171,7 @@ Dano **contínuo ao longo do tempo**, não num pulso só. Ex.: queimadura que ti
 ### Ignite (Igníção / Queimar)
 **Status de fogo** que aplica DoT (ver acima) — o alvo "pega fogo" e perde HP por alguns segundos. Muitas vezes pode propagar ou empilhar.
 
-**No projeto:** mencionado nos comentários do GDD como possível efeito do dado em `magias.c::sandbox` ("d6 saiu 6 = +30 dano + ignite passivo").
+**No projeto:** o efeito `EF_IGNITE` da profecia aplica ignite (DoT de fogo) nos inimigos numa área — magnitudes (`ignite_dps`, `ignite_tempo`, `ignite_raio`) em `profecia_efeitos.c`.
 
 ### Knockback
 **Empurrão** que um ataque dá no alvo. Ataque com knockback pra fora afasta o inimigo; sem knockback ele "fica colado" em você.
@@ -196,7 +196,7 @@ Pequeno **deslocamento aleatório** aplicado à direção que um inimigo segue. 
 ### Piercing (Penetrante)
 Atributo de projétil que **atravessa o primeiro alvo** em vez de sumir. Útil pra hit em fila.
 
-**No projeto:** o comentário em `colisao.c` cita explicitamente: o `break` foi omitido na colisão magia-vs-inimigo "pra deixar brecha pra piercing shots".
+**No projeto:** não implementado — em `colisao.c` cada projétil acerta **um** inimigo e morre (tem `break` após o primeiro hit). O chain do Relâmpago salta entre inimigos, mas é outro mecanismo (rider), não piercing.
 
 ### Projétil
 Qualquer coisa que **voa pela tela** atacando — bala, flecha, bola de fogo. Em código, costuma ter posição, velocidade e tempo de vida.
@@ -216,12 +216,12 @@ Status que **impede o alvo de agir** por um curto período (não anda, não atac
 ### Tick
 Cada **iteração regular** de um efeito que tem duração. Um veneno de "5 dano por segundo durante 4s" tem 4 ticks. Também é usado como sinônimo de "frame" em alguns contextos.
 
-**No projeto:** a condição `COND_A_CADA_5S` em `tipos.h` é um tick a cada 5 segundos.
+**No projeto:** a condição `COND_A_CADA_N_SEG` dispara o efeito do mod a cada N segundos (N = 10 hoje, definido em `LIMIARES_CONDICAO`, `profecia_efeitos.c`).
 
 ### Zona morta (Deadzone)
 **Faixa de valores onde o sistema ignora a entrada** ou para de agir. Em IA, é uma região perto do alvo onde o inimigo simplesmente para em vez de tentar correções minúsculas (que só causariam jitter). Em controles físicos (joystick), é o intervalo perto do centro onde pequenos desvios não contam, evitando movimento parasita.
 
-**No projeto:** a `ia_kiter` em `inimigos_tipos.c` para o inimigo se a distância até o slot do círculo for menor que 6 pixels — sem isso, o kiter ficaria oscilando 1px pra lá e pra cá quando perto demais do alvo.
+**No projeto:** a `ia_kiter` em `inimigos_tipos.c` tem uma **zona** em volta da distância ideal (≈280px ± 60): dentro dela o kiter não aproxima nem recua (componente radial = 0), só orbita — sem isso ficaria oscilando pra frente e pra trás perto do alvo.
 
 ---
 
@@ -276,12 +276,12 @@ Efeito de **tremer a câmera** durante eventos impactantes (explosão, hit forte
 
 **Ângulo polar** é o ângulo de um ponto em relação a uma origem (geralmente o jogador). Útil pra organizar inimigos em volta dele de forma coerente: quem está em "30°" fica à direita-em-baixo, quem está em "180°" fica à esquerda, etc.
 
-**No projeto:** a `ia_kiter` em `inimigos_tipos.c` usa `atan2f` pra calcular o ângulo polar de cada kiter ao redor do jogador, e ordena os kiters por esse ângulo pra atribuir slots numa formação circular (ver "Formação / Cerco").
+**No projeto:** `ia_boss_fases` e `ia_chase`/`ia_kiter` usam trigonometria (`cosf`/`sinf`/`atan2`) pra posicionar minions e rotacionar vetores de aproximação. (Uma versão antiga do kiter ordenava os inimigos por ângulo polar num círculo coordenado, mas foi revertida por parecer mecânica.)
 
 ### BeginMode2D / EndMode2D
 Funções do Raylib que **abrem e fecham um bloco com câmera 2D ativa**. Tudo desenhado entre os dois é interpretado em **coordenadas de mundo** (a câmera aplica offset/zoom). Fora do bloco, tudo é coord de tela.
 
-**No projeto:** em `main.c`, o bloco `BeginMode2D(ej->camera) ... EndMode2D()` engloba o desenho do grid, jogador, inimigos, magias e obstáculos. O HUD vem **depois** do `EndMode2D` porque deve ficar fixo na tela.
+**No projeto:** em `main.c`, o bloco `BeginMode2D(ej->camera) ... EndMode2D()` engloba o desenho do chão (tilemap), jogador, inimigos e magias. O HUD vem **depois** do `EndMode2D` porque deve ficar fixo na tela.
 
 ### CLI / Linha de comando
 **Command Line Interface.** Programa que roda no terminal e desenha "gráficos" usando caracteres (ASCII art) na grade do terminal, em vez de uma janela gráfica com pixels.
@@ -297,7 +297,7 @@ Estrutura do Raylib que **define um ponto de vista**. Tem `target` (o que ela ap
 - **Coord de mundo:** posição "real" da entidade no universo do jogo. Não muda quando a câmera anda. Ex.: o jogador está em (1500, -200) no mundo.
 - **Coord de tela:** posição em pixels da janela. (0, 0) é o canto superior esquerdo da tela. Muda conforme você vê o mundo.
 
-A câmera converte de uma pra outra. HUD e menus usam coord de tela. Jogador, inimigos, magias e obstáculos usam coord de mundo.
+A câmera converte de uma pra outra. HUD e menus usam coord de tela. Jogador, inimigos e magias usam coord de mundo.
 
 **No projeto:** o comentário longo em `tipos.h::EstadoJogo.camera` explica isso.
 
@@ -335,7 +335,7 @@ A **área visível** da tela do jogo. Em AUGUR, é uma janela de 1280×720 pixel
 ### Bioma
 **Tema visual + comportamental** de um pedaço do mundo. Floresta, deserto, caverna são biomas. Em jogos procedurais, o bioma define cor de fundo, tipos de obstáculo possíveis, paleta dos inimigos.
 
-**No projeto:** o GDD cita "bioma + obstáculos" como dado por seed. Hoje o jogo tem só um bioma genérico (grid escuro + obstáculos genéricos). Quando os obstáculos forem portados do sandbox, vão criar a sensação de bioma — árvores em densidade alta = floresta, pedras em densidade alta = caverna, etc.
+**No projeto:** hoje o chão é um **tilemap de grama** determinístico (flores, trevos e pedras esparsas, escolhidos por hash da posição em `desenhar_chao_mundo`). É um bioma só; o GDD prevê biomas variados por seed como evolução futura.
 
 ### Big O / O(n²) / Complexidade
 Notação matemática pra estimar **quanto tempo um algoritmo leva conforme o tamanho da entrada cresce**. `O(n)` = roda 1 vez pra cada item. `O(n²)` = pra cada item, roda outra passada de N itens (loop dentro de loop) — fica caro rápido. `O(1)` = tempo fixo, não depende do N.
@@ -365,7 +365,7 @@ Ver **Hitbox** em [Combate, IA e entidades](#combate-ia-e-entidades).
 ### Procedural / proceduralmente
 Conteúdo **gerado por algoritmo**, não desenhado à mão. Em vez de ter 100 mapas pré-feitos, o jogo escreve um mapa novo a cada partida usando regras + um número aleatório.
 
-**No projeto:** profecia, layout de obstáculos e timeline de spawns são procedurais. Tudo a partir de uma seed.
+**No projeto:** profecia, chão (tilemap de grama) e timeline de spawns são procedurais. Tudo a partir de uma seed.
 
 ### Push-out
 Técnica de colisão: quando duas formas se sobrepõem, **empurra uma pra fora** pela quantidade exata do overlap, na direção do vetor entre os centros. Resultado: as formas ficam só se tocando, não dentro uma da outra.
@@ -373,12 +373,11 @@ Técnica de colisão: quando duas formas se sobrepõem, **empurra uma pra fora**
 **No projeto:**
 - `colisao.c` faz push-out **assimétrico** do jogador contra inimigos (jogador é empurrado, inimigo fica parado).
 - `inimigos.c` faz push-out **simétrico O(n²)** entre todos os pares de inimigos (cada um anda metade do overlap), evitando que se empilhem em cima do jogador.
-- `obstaculos.c` (a portar) deve fazer push-out do jogador e dos inimigos contra árvores e pedras.
 
 ### Seed
 **Número que alimenta um gerador procedural.** Mesma seed → mesma sequência de números aleatórios → mesmo conteúdo gerado. Tipo um "código de barras" da run.
 
-**No projeto:** `unsigned int seed` em `Profecia` (`tipos.h`). O ENTER no menu sorteia uma seed nova com `rand()`, e ela é usada tanto pela `profecia_gerar` quanto pela `obstaculos_gerar`. A seed também é mostrada nas telas de game over e vitória pro jogador anotar.
+**No projeto:** `unsigned int seed` em `Profecia` (`tipos.h`). O ENTER no menu sorteia uma seed nova com `rand()`, e ela é usada pela `profecia_gerar`. A seed também é mostrada nas telas de game over e vitória pro jogador anotar.
 
 ---
 
@@ -432,7 +431,7 @@ A graça é que quem chama o dispatcher não precisa saber qual variante é qual
 ### Stub
 Função que **existe mas ainda não foi implementada**. Tipicamente vazia ou só com `return 0`. Permite que o resto do código compile enquanto alguém ainda não terminou aquela parte.
 
-**No projeto:** os arquivos `obstaculos.c`, `dados.c`, `salvamento.c` ainda têm stubs. As funções são declaradas no header e o `.c` implementa versões vazias com `(void)ej;` pra silenciar o warning de parâmetro não usado.
+**No projeto:** a versão atual **não tem stubs** — `dados`, `salvamento`, `hud` e o resto estão implementados. O módulo `obstaculos`, que tinha ficado como stub (4 funções `(void)ej;` vazias), foi **removido** na limpeza final em vez de ser completado.
 
 ### Lookup table / Indexar
 **Acessar uma tabela usando um índice direto**, sem loop. Ex.: `PARAMETROS_INIMIGO[INIMIGO_ELITE]` te devolve os stats do elite em O(1) — instantâneo.
@@ -465,6 +464,35 @@ Variável local declarada com `static` dentro de uma função. Diferente de uma 
 Estrutura de dados onde cada **nó tem um ponteiro pro próximo**. Diferente de array porque dá pra inserir e remover em O(1) sem realocar. Custo: percorrer é O(n) (não dá pra "pular pro item 50"). Ideal pra coisas que nascem e morrem o tempo todo.
 
 **No projeto:** `MagiaNo` e `InimigoNo` em `tipos.h`. Inserção sempre na cabeça (`novo->proximo = cabeca; cabeca = novo`). Remoção dos mortos com **ponteiro duplo** (`InimigoNo **atual`) pra tratar a cabeça e os outros nós com a mesma lógica.
+
+---
+
+## Termos adicionados nesta versão
+
+### Sprite sheet / animação direcional
+Uma **sprite sheet** é um único PNG com vários quadros (frames) da animação em grade; o código recorta o frame certo na hora de desenhar. "Direcional" = uma linha de frames por direção (baixo/cima/esquerda/direita).
+
+**No projeto:** o módulo `assets.c` carrega as sheets e `desenhar_sheet()` mapeia (animação, direção, tempo) → (linha, frame). Convenção fixa: linhas 0–3 idle, 4–7 walk, 8–11 cast (4 direções cada), 12 hurt, 13 death. Se o PNG faltar (`id == 0`), cai no fallback de primitiva (círculo) sem quebrar o jogo.
+
+### Letterbox / RenderTexture2D
+**Letterbox** = renderizar o jogo num tamanho fixo e depois **escalar** pra janela mantendo a proporção. A imagem nunca corta nem distorce (no máximo sobra uma borda quando a janela tem outra proporção).
+
+**No projeto:** tudo é desenhado num `RenderTexture2D` de 1280×720 (`render_target` em `EstadoJogo`) e depois copiado escalado pra janela. É o que faz a resolução e o redimensionamento funcionarem sem cropar a tela.
+
+### Tileset / tilemap
+Um **tileset** é o conjunto de pecinhas quadradas (tiles) de chão; o **tilemap** é o chão montado repetindo essas pecinhas. Determinístico = a mesma posição sempre recebe o mesmo tile.
+
+**No projeto:** `desenhar_chao_mundo` (em `main.c`) escolhe o tile de cada célula por um **hash da posição** (bioma de grama com flores/pedras esparsas). Mesma posição, mesmo tile — sem guardar um mapa gigante na memória.
+
+### Histórico de seeds
+Lista das **últimas runs jogadas** (seed + resultado), pra recarregar uma partida boa sem precisar anotar a seed.
+
+**No projeto:** `historico.c` mantém `DadosSalvos.historico[]` (até 10, mais recente em `[0]`) e a tela `ESTADO_HISTORICO` lista elas. Persistido junto do save.
+
+### Magia inicial / sinergia
+Após a profecia, o jogador escolhe **1 de 3 magias** sorteadas; ela vira um 4º elemento no auto-fire. **Sinergia** = pelo menos uma das opções usa um elemento que aparece em algum mod da profecia (combina com os efeitos dela).
+
+**No projeto:** `magia_inicial.c` sorteia as 3 opções (garantindo a sinergia) e a tela `ESTADO_ESCOLHA_MAGIA_INICIAL` mostra os cards. O 4º slot entra no round-robin de `magias_tipos_processar_auto_fire`.
 
 ---
 

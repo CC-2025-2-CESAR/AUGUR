@@ -1,5 +1,10 @@
 # Issue para Sofia — Adaptar HUD ao novo sistema de Cronograma
 
+> **Histórico (resolvido).** Esta issue já foi concluída: a HUD mostra o tempo da
+> run (`MM:SS / 05:00`), a contagem regressiva do chefão e a barrinha de progresso
+> até a próxima carta — ver `src/interface/hud.c` (`hud_desenhar_tempo`). Mantido
+> aqui só como registro de como o HUD foi pensado, não é tarefa ativa.
+
 ## Contexto
 
 O sistema de **ondas finitas** foi substituído por um **cronograma de 5 minutos** estilo Vampire Survivors:
