@@ -10,12 +10,16 @@
 #include "colisao.h"
 #include "jogador.h"
 #include "inimigos.h"
-#include "inimigos_tipos.h"
 #include "magias_comportamento.h"
 #include "profecia.h"
 #include "profecia_efeitos.h"
 #include "combos.h"
 #include <math.h>
+
+/* Dano de contato (encostar num inimigo): leve e com cooldown por inimigo, pra
+ * não drenar HP a cada frame. O golpe forte vem do ataque telegrafado. */
+#define CONTATO_DANO_FRAC 0.35f   /* fração do dano do inimigo aplicada por toque */
+#define CONTATO_COOLDOWN  0.6f    /* s entre toques que machucam (por inimigo) */
 
 
 /* ----- PRIMITIVA: CÍRCULO × CÍRCULO ----- */
@@ -170,23 +174,19 @@ void colisao_verificar_tudo(EstadoJogo *ej) {
         float soma_raios = ej->jogador.raio + ino->dados.raio;
 
         if (distancia2 <= soma_raios * soma_raios) {
-            /* Inimigos corpo a corpo (alcance_ataque>0) causam dano pelo golpe
-             * telegrafado (inimigos.c), NÃO por contato — aqui eles só empurram.
-             * Quem não tem golpe (ranged que esbarra, chefe) ainda dá dano de
-             * contato. Escudo da profecia anula 1 hit. */
-            bool causa_dano_contato = true;
-            if ((int)ino->dados.tipo >= 0 &&
-                (int)ino->dados.tipo < QTD_PARAMETROS_INIMIGO &&
-                PARAMETROS_INIMIGO[ino->dados.tipo].alcance_ataque > 0.0f) {
-                causa_dano_contato = false;
-            }
-            if (causa_dano_contato) {
+            /* Dano de contato: LEVE e com cooldown por inimigo (chip por
+             * encostar, sem drenar HP a cada frame). O golpe forte vem do
+             * ataque telegrafado (inimigos.c). Escudo da profecia anula 1 hit. */
+            if (ino->dados.contato_cooldown_restante <= 0.0f) {
                 if (ej->motor_profecia.escudo_ativo > 0.0f) {
                     ej->motor_profecia.escudo_ativo = 0.0f;
                 } else {
-                    jogador_sofrer_dano(&ej->jogador, (int)ino->dados.dano);
+                    int dano_contato = (int)(ino->dados.dano * CONTATO_DANO_FRAC);
+                    if (dano_contato < 1) dano_contato = 1;
+                    jogador_sofrer_dano(&ej->jogador, dano_contato);
                     profecia_evento_ao_receber_dano(ej);
                 }
+                ino->dados.contato_cooldown_restante = CONTATO_COOLDOWN;
             }
 
             /* COLISÃO FÍSICA: empurra o jogador pra fora do inimigo pela

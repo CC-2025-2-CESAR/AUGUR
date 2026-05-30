@@ -39,7 +39,8 @@ Menu → (seed) → Revelação da Profecia → Escolha da Magia Inicial → Com
 1. **Profecia revelada** — leia as 3 regras da run.
 2. **Magia inicial** — escolha 1 de 3 magias sorteadas (some um 4º elemento ao
    seu leque; pelo menos uma das opções tem sinergia com a profecia).
-3. **Combate** — magias miram e atiram sozinhas; você desvia e posiciona.
+3. **Combate** — magias miram e atiram sozinhas; você se move pra desviar dos
+   projéteis e dos golpes corpo a corpo telegrafados.
 4. **Cartas** — a cada minuto, 3 cartas; pode gastar um **dado** pra rolar (melhorar
    ou piorar) o valor de uma carta antes de escolher.
 5. **Chefão** aos 5:00, com fases por % de vida.
@@ -54,6 +55,12 @@ Menu → (seed) → Revelação da Profecia → Escolha da Magia Inicial → Com
 - **Combos emergentes** — Fogo→Gelo = **Choque Térmico** (stun + próxima hit
   amplificada); Arcano em inimigo envenenado = dano dobrado.
 - **Inimigos atiram** — ranged e chefão disparam um projétil padrão, tunável por tipo.
+- **Golpe corpo a corpo telegrafado** — corpo a corpo e elite chegam perto, **param
+  e carregam** o ataque (aviso visual) e então **avançam (lunge)** pra acertar; dá pra
+  esquivar saindo durante o windup. **Encostar** num inimigo ainda causa um dano leve,
+  com cooldown por inimigo (chip — não drena HP a cada frame).
+- **Feedback de combate** — inimigos **piscam vermelho** ao levar dano e **amarelo**
+  enquanto carregam o golpe; o jogador pisca ao tomar hit.
 - **Escolha de magia inicial** e **histórico das últimas 10 seeds jogadas** (pra
   recarregar uma run boa sem precisar anotar a seed).
 - **Cartas de upgrade + sistema de dados** — risco gerenciado: rolar pode melhorar

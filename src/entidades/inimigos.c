@@ -72,6 +72,7 @@ void inimigos_spawnar_em(EstadoJogo *ej, Vector2 posicao, TipoInimigo tipo) {
     novo->dados.ataque_cooldown_restante  = 0.0f;
     novo->dados.ataque_lunge_restante     = 0.0f;
     novo->dados.ataque_lunge_vel          = (Vector2){ 0.0f, 0.0f };
+    novo->dados.contato_cooldown_restante = 0.0f;
 
     novo->proximo            = ej->inimigos_cabeca;
     ej->inimigos_cabeca      = novo;
@@ -180,6 +181,10 @@ void inimigos_atualizar(EstadoJogo *ej) {
         if (d->dano_flash_tempo > 0.0f) {
             d->dano_flash_tempo -= dt;
             if (d->dano_flash_tempo < 0.0f) d->dano_flash_tempo = 0.0f;
+        }
+        if (d->contato_cooldown_restante > 0.0f) {
+            d->contato_cooldown_restante -= dt;
+            if (d->contato_cooldown_restante < 0.0f) d->contato_cooldown_restante = 0.0f;
         }
 
         /* DoT do veneno: acumulador float evita truncar pra 0 com o int vida. */
