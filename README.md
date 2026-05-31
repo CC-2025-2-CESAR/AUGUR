@@ -2,6 +2,14 @@
 
 **Bullet Hell Roguelite · Projeto PIF 2026.1 · CESAR School**
 
+## Vídeo de gameplay
+
+▶️ **[Assista ao jogo sendo executado no YouTube](https://www.youtube.com/watch?v=jXXlK0jgmD0)**
+
+<a href="https://www.youtube.com/watch?v=jXXlK0jgmD0">
+  <img src="https://img.youtube.com/vi/jXXlK0jgmD0/hqdefault.jpg" alt="AUGUR - video de gameplay no YouTube" width="480">
+</a>
+
 ## A proposta
 
 **AUGUR é um bullet hell roguelite onde cada partida é um quebra-cabeça diferente.**
