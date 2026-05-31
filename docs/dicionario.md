@@ -211,7 +211,7 @@ Verbo: **fazer aparecer** uma entidade no mundo (inimigo, projétil, item). Subs
 ### Stun (Atordoamento)
 Status que **impede o alvo de agir** por um curto período (não anda, não ataca). Bom contra inimigos perigosos.
 
-**No projeto:** ainda não tem stun na implementação. O GDD menciona "Choque Térmico" como combo Bola de Fogo + Nova de Gelo: stun de 2s.
+**No projeto:** o elemento **Gelo** aplica stun — o rider `RIDER_CONGELA` (`magias_comportamento.c`) e o efeito `EF_CONGELAR` da profecia setam `congelado_tempo` no inimigo, e `inimigos.c` zera a velocidade dele enquanto o timer corre. O combo **Choque Térmico** (Fogo→Gelo) reforça isso.
 
 ### Tick
 Cada **iteração regular** de um efeito que tem duração. Um veneno de "5 dano por segundo durante 4s" tem 4 ticks. Também é usado como sinônimo de "frame" em alguns contextos.
@@ -250,12 +250,12 @@ Estado em que o **mundo congela**: tempo não avança, inimigos não se movem, p
 ### Polish
 Ajustes finais que **fazem o jogo "sentir bem"**: timing certo das animações, partículas, screenshake, balanceamento de números, feedback sonoro. Não muda o jogo no nível de regras — muda como o jogo "soa". É a fase final do desenvolvimento, depois que tudo já funciona mecanicamente.
 
-**No projeto:** a semana 5 do cronograma do GDD (26/05–31/05) é "Polish & Entrega" — screenshake em explosões, partículas de morte, balanceamento de dificuldade, gravação do vídeo. Hoje (07/05) ainda estamos em fase de feature; polish vem depois.
+**No projeto:** a fase "Polish & Entrega" do GDD (semana final) cobre feedback, balanceamento e a gravação do vídeo. Já entraram itens de polish de combate — **flash de dano** nos inimigos e o **telegrafo** (windup amarelo) do golpe corpo a corpo; screenshake e partículas de morte seguem como evolução possível.
 
 ### Score
 **Pontuação.** Em roguelites geralmente é "até onde você chegou" + abates + tempo.
 
-**No projeto:** o GDD prevê **top 10 scores em arquivo** (`scores.dat`) com seed visível, pra o jogador poder reproduzir runs interessantes. Implementação em `salvamento.c` é responsabilidade da Sofia. O campo `DadosSalvos.melhor_onda` em `tipos.h` é placeholder; o nome ficou de quando ainda existia o conceito de "onda" — vai virar `melhor_tempo` ou similar quando o módulo for refeito.
+**No projeto:** a pontuação da run é a **biomassa** coletada. O **leaderboard** (implementado em `leaderboard.c`) guarda top-10 por **tempo** (só vitórias) e por **biomassa** (todas as runs), com a seed visível pra reproduzir runs interessantes. Tudo persistido em `saves/biomassa.dat` (`salvamento.c`), não num arquivo separado.
 
 ### Screenshake
 Efeito de **tremer a câmera** durante eventos impactantes (explosão, hit forte, morte). Dá peso ao impacto sem precisar de dano numérico maior.
