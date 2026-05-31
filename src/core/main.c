@@ -88,8 +88,8 @@ static void iniciar_run_com_seed(EstadoJogo *ej, unsigned int seed);
 
 /* Reset completo do estado da run. Chamada toda vez que uma nova run começa
  * (depois da revelação da profecia). Garante que não sobra nada da run
- * anterior — listas vazias, jogador na origem com vida cheia. Não toca em
- * salvamento nem em tempo_total (esses são meta-progressão / debug). */
+ * anterior — listas vazias, jogador na origem com vida cheia. Não toca no
+ * salvamento (meta-progressão). */
 static void jogo_resetar_run(EstadoJogo *ej);
 
 
@@ -234,8 +234,6 @@ static void jogo_atualizar(EstadoJogo *ej) {
      * Usamos pra movimento suave: "posicao += velocidade * delta_tempo"
      * garante velocidade constante mesmo se o FPS variar. */
     ej->delta_tempo = GetFrameTime();
-    ej->tempo_total += ej->delta_tempo;
-    ej->contador_frames++;
 
     /* F1 alterna modo debug (mostra FPS, etc.) */
     if (IsKeyPressed(KEY_F1)) {
@@ -852,8 +850,8 @@ static void jogo_finalizar(EstadoJogo *ej) {
  * --------------------------------------------------------------------------
  * Chamada em todo INÍCIO de run (depois da revelação da profecia). Devolve o
  * estado a um ponto consistente: listas vazias, jogador na origem com vida
- * cheia, câmera centrada no jogador. Não mexe em salvamento (meta), em
- * tempo_total (debug) nem na profecia (já gerada antes).
+ * cheia, câmera centrada no jogador. Não mexe em salvamento (meta) nem na
+ * profecia (já gerada antes).
  * ========================================================================== */
 static void jogo_resetar_run(EstadoJogo *ej) {
     magias_liberar_tudo(ej);

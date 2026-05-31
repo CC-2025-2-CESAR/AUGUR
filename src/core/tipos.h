@@ -23,7 +23,7 @@
 
 /* Versão do formato do save. Se o disco trouxer outro valor, salvamento_carregar
  * zera tudo — evita lixo binário ao mudar o layout de DadosSalvos. */
-#define SAVE_VERSAO_ATUAL 3
+#define SAVE_VERSAO_ATUAL 4   /* bump: removidos melhor_onda + profecias_desbloqueadas */
 
 #define LEADERBOARD_TAM     10  /* top-10 nas duas tabelas (tempo + biomassa) */
 #define HISTORICO_SEEDS_TAM 10  /* últimas 10 seeds jogadas */
@@ -370,8 +370,6 @@ typedef struct {
     /* Progressão (campos originais da Sofia). */
     int  biomassa_total;
     int  runs_completadas;
-    int  melhor_onda;
-    int  profecias_desbloqueadas[20]; /* MATRIZ — requisito obrigatório */
     char nome_jogador[32];
 
     /* Config de vídeo. */
@@ -444,10 +442,8 @@ typedef struct {
     /* Dados que o jogador leva nesta run. */
     Dado      dados_ativos[MAX_DADOS_JOGADOR];
 
-    /* Tempo e frames. */
+    /* Tempo. */
     float     delta_tempo;        /* s desde o último frame */
-    float     tempo_total;
-    int       contador_frames;
 
     bool      modo_debug;         /* F1 alterna; mostra FPS */
     bool      tiros_ativos;       /* Q alterna; pausa o auto-fire */
